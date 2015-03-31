@@ -14,9 +14,11 @@ const (
 	TYPE = "tcp"
 )
 
-var Clients map[string]int
-var Pool map[int]*net.Conn
-var mutex *sync.Mutex
+var (
+	Clients map[string]int
+	Pool    map[int]*net.Conn
+	mutex   *sync.Mutex
+)
 
 func main() {
 	if len(os.Args) != 2 {
@@ -80,7 +82,7 @@ func handleRequest(conn net.Conn) {
 
 func router(parts []string, conn net.Conn, id int) {
 	prefix := strings.TrimSpace(parts[0])
-	content := strings.TrimSpace(parts[1])
+	content := strings.TrimSpace(strings.Join(parts[1:], ":"))
 	if v := isDigit(prefix); v != -1 {
 		responseToId(conn, content, v)
 	} else {
