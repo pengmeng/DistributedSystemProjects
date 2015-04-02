@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 const (
@@ -14,30 +13,38 @@ const (
 	TYPE = "tcp"
 )
 
-var (
-	Clients map[string]int
-	Pool    map[int]*net.Conn
-	mutex   *sync.Mutex
-)
+type Client struct {
+	Id   int
+	Conn *net.Conn
+}
+
+type Message struct {
+	Src  int
+	Des  int
+	Body string
+}
 
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Println("Want one and only one argument.")
 		os.Exit(1)
 	}
-	Clients = make(map[string]int)
-	Pool = make(map[int]*net.Conn)
-	mutex = &sync.Mutex{}
-	Clients["next"] = 0
 	port := os.Args[1]
 	listener, err := net.Listen(TYPE, HOST+":"+port)
 	checkErr(err)
+	defer listener.Close()
 	fmt.Println("Listening on port : " + port)
+	newid := 1
+	clientCh := make(chan *Client)
+	msgCh := make(chan *Message)
+	go handleMsg(clientCh, msgCh)
 	for {
 		conn, err := listener.Accept()
-		defer conn.Close()
 		checkErr(err)
-		go handleRequest(conn)
+		defer conn.Close()
+		client := &Client{Id: newid, Conn: &conn}
+		go handleConn(client, clientCh, msgCh)
+		newid++
 	}
 }
 
@@ -48,84 +55,86 @@ func checkErr(err error) {
 	}
 }
 
-func handleRequest(conn net.Conn) {
-	buf := make([]byte, 1024)
+func handleMsg(clientCh chan *Client, msgCh chan *Message) {
+	pool := make(map[int]*net.Conn)
 	for {
+		select {
+		case client := <-clientCh:
+			if _, ok := pool[client.Id]; ok {
+				delete(pool, client.Id)
+				fmt.Printf("Id %d left. %d client(s) active.\n", client.Id, len(pool))
+			} else {
+				pool[client.Id] = client.Conn
+				fmt.Printf("Id %d join. %d client(s) active.\n", client.Id, len(pool))
+			}
+		case message := <-msgCh:
+			if message.Des == 0 {
+				for _, conn := range pool {
+					response(*conn, message.Body)
+				}
+			} else {
+				if conn, ok := pool[message.Des]; ok {
+					response(*conn, message.Body)
+				} else {
+					response(*pool[message.Src], "Unknown client Id.")
+				}
+			}
+		}
+	}
+}
+
+func handleConn(client *Client, clientCh chan *Client, msgCh chan *Message) {
+	buf := make([]byte, 1024)
+	clientCh <- client
+	for {
+		conn := *client.Conn
 		length, err := conn.Read(buf)
 		if err != nil {
-			fmt.Println(err.Error())
 			conn.Close()
 			break
 		}
 		fmt.Printf(
 			"Received: %s from %s\n",
-			string(buf[:length]),
+			string(buf[:length-1]),
 			conn.RemoteAddr().String(),
 		)
-		remote := conn.RemoteAddr().String()
-		if _, ok := Clients[remote]; !ok {
-			mutex.Lock()
-			Clients[remote] = Clients["next"]
-			Clients["next"]++
-			Pool[Clients[remote]] = &conn
-			mutex.Unlock()
-		}
-		result := strings.TrimSpace(string(buf[:length-1]))
-		parts := strings.Split(result, ":")
-		if len(parts) == 1 {
-			responseAll(conn, parts[0])
+		message := parseMsg(client.Id, string(buf[:length-1]))
+		msgCh <- message
+	}
+	clientCh <- client
+}
+
+func parseMsg(src int, body string) *Message {
+	message := &Message{
+		Src: src,
+		Des: 0,
+	}
+	parts := strings.SplitN(strings.TrimSpace(body), ":", 2)
+	if len(parts) == 1 {
+		message.Body = strconv.Itoa(src) + ": " + parts[0]
+	} else {
+		prefix := strings.TrimSpace(parts[0])
+		body := strings.TrimSpace(parts[1])
+		if v, err := strconv.Atoi(prefix); err == nil {
+			message.Body = strconv.Itoa(src) + ": " + body
+			message.Des = v
 		} else {
-			router(parts, conn, Clients[remote])
+			switch prefix {
+			case "whoami":
+				message.Body = "chitter: " + strconv.Itoa(src)
+				message.Des = src
+			case "all":
+				message.Body = strconv.Itoa(src) + ": " + body
+			default:
+				message.Body = "Unknown prefix."
+				message.Des = src
+			}
 		}
 	}
-}
-
-func router(parts []string, conn net.Conn, id int) {
-	prefix := strings.TrimSpace(parts[0])
-	content := strings.TrimSpace(strings.Join(parts[1:], ":"))
-	if v := isDigit(prefix); v != -1 {
-		responseToId(conn, content, v)
-	} else {
-		switch prefix {
-		case "whoami":
-			response(conn, "chitter: "+strconv.Itoa(id))
-		case "all":
-			responseAll(conn, content)
-		default:
-			response(conn, "Unknown prefix.")
-		}
-	}
-}
-
-func isDigit(s string) int {
-	if v, err := strconv.Atoi(s); err != nil {
-		return -1
-	} else {
-		return v
-	}
+	return message
 }
 
 func response(conn net.Conn, content string) {
 	fmt.Println("Send ", content)
 	conn.Write([]byte(content + "\n"))
-}
-
-func responseToId(conn net.Conn, content string, toid int) {
-	fromid := Clients[conn.RemoteAddr().String()]
-	for id, conn := range Pool {
-		if id == toid {
-			response(*conn, strconv.Itoa(fromid)+": "+content)
-			return
-		}
-	}
-	response(conn, "Id "+strconv.Itoa(toid)+" doesn't exist.")
-}
-
-func responseAll(conn net.Conn, content string) {
-	from := conn.RemoteAddr().String()
-	fromid := Clients[from]
-	s := strconv.Itoa(fromid) + ": " + content
-	for _, conn := range Pool {
-		response(*conn, s)
-	}
 }
