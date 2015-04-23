@@ -20,7 +20,11 @@ func BuildKBuckets(selfId ID) *KBuckets {
 
 func (kb KBuckets) Find(nodeId ID) (*Contact, error) {
 	ele, err := kb.find(nodeId)
-	return ele.Value.(*Contact), err
+	if ele != nil {
+		return ele.Value.(*Contact), err
+	} else {
+		return nil, err
+	}
 }
 
 func (kb KBuckets) find(nodeId ID) (*list.Element, error) {
