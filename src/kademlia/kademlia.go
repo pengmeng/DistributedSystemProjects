@@ -18,8 +18,8 @@ const (
 	k     = 20
 )
 
-type Pair struct{
-	key ID
+type Pair struct {
+	key   ID
 	value []byte
 }
 
@@ -95,13 +95,13 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 func (k *Kademlia) addDataWorker() {
 	// loop forever, wait for input from addDataChan
 	// add pair of key, value to map
-	for{
-		pair := <- k.addDataChan
+	for {
+		pair := <-k.addDataChan
 		k.LocalData[pair.key] = pair.value
 	}
 }
 
-func (k* Kademlia) addData(p Pair){
+func (k *Kademlia) addData(p Pair) {
 	k.addDataChan <- p
 }
 
@@ -118,7 +118,7 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 	}
 
 	ping := PingMessage{k.SelfContact, NewRandomID()}
-	var pong PongMessage	
+	var pong PongMessage
 
 	err = client.Call("KademliaCore.Ping", ping, &pong)
 
@@ -135,7 +135,7 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
 	client, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", (*contact).Host.String(), (*contact).Port))
-	
+
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
@@ -154,7 +154,6 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
 func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
-
 
 	return "OK: Find nodes"
 }

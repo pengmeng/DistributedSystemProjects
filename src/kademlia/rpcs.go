@@ -37,7 +37,7 @@ func (kc *KademliaCore) Ping(ping PingMessage, pong *PongMessage) error {
 	// server Ping
 	pong.MsgID = CopyID(ping.MsgID)
 	go kc.kademlia.AddrBook.Update(ping.Sender)
-	
+
 	return nil
 }
 
@@ -60,7 +60,7 @@ func (kc *KademliaCore) Store(req StoreRequest, res *StoreResult) error {
 	// TODO: Implement.
 	go kc.kademlia.AddrBook.Update(req.Sender)
 	go kc.kademlia.addData(Pair{req.Key, req.Value})
-	res.MsgID = CopyID(req.MsgID)	
+	res.MsgID = CopyID(req.MsgID)
 	return nil
 }
 
@@ -113,7 +113,7 @@ type FindValueResult struct {
 func (kc *KademliaCore) FindValue(req FindValueRequest, res *FindValueResult) error {
 	// TODO: Implement.
 	go kc.kademlia.AddrBook.Update(req.Sender)
-	
+
 	key := req.Key
 
 	// check if key is in LocalData
@@ -122,7 +122,7 @@ func (kc *KademliaCore) FindValue(req FindValueRequest, res *FindValueResult) er
 
 	} else {
 		res.MsgID = CopyID(req.MsgID)
-		res.Nodes = kc.kademlia.AddrBook.Find(req.Key)		
+		res.Nodes = kc.kademlia.AddrBook.Find(req.Key)
 	}
 
 	return nil
