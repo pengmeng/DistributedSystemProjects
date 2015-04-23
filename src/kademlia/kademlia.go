@@ -9,7 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
-    "strconv"
+	"strconv"
 )
 
 const (
@@ -20,15 +20,18 @@ const (
 
 // Kademlia type. You can put whatever state you need in this.
 type Kademlia struct {
-	NodeID ID
-    SelfContact Contact
+	NodeID      ID
+	SelfContact Contact
+	LocalData   map[ID][]byte
+	Contacts    *KBuckets
 }
-
 
 func NewKademlia(laddr string) *Kademlia {
 	// TODO: Initialize other state here as you add functionality.
 	k := new(Kademlia)
 	k.NodeID = NewRandomID()
+	k.LocalData = make(map[ID][]byte)
+	k.Contacts = BuildKBuckets(k.NodeID)
 
 	// Set up RPC server
 	// NOTE: KademliaCore is just a wrapper around Kademlia. This type includes
@@ -42,18 +45,18 @@ func NewKademlia(laddr string) *Kademlia {
 	// Run RPC server forever.
 	go http.Serve(l, nil)
 
-    // Add self contact
-    hostname, port, _ := net.SplitHostPort(l.Addr().String())
-    port_int, _ := strconv.Atoi(port)
-    ipAddrStrings, err := net.LookupHost(hostname)
-    var host net.IP
-    for i := 0; i < len(ipAddrStrings); i++ {
-        host = net.ParseIP(ipAddrStrings[i])
-        if host.To4() != nil {
-            break
-        }
-    }
-    k.SelfContact = Contact{k.NodeID, host, uint16(port_int)}
+	// Add self contact
+	hostname, port, _ := net.SplitHostPort(l.Addr().String())
+	port_int, _ := strconv.Atoi(port)
+	ipAddrStrings, err := net.LookupHost(hostname)
+	var host net.IP
+	for i := 0; i < len(ipAddrStrings); i++ {
+		host = net.ParseIP(ipAddrStrings[i])
+		if host.To4() != nil {
+			break
+		}
+	}
+	k.SelfContact = Contact{k.NodeID, host, uint16(port_int)}
 	return k
 }
 
@@ -69,10 +72,10 @@ func (e *NotFoundError) Error() string {
 func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	// TODO: Search through contacts, find specified ID
 	// Find contact with provided ID
-    if nodeId == k.SelfContact.NodeID {
-        return &k.SelfContact, nil
-    }
-	return nil, &NotFoundError{nodeId, "Not found"}
+	if nodeId == k.SelfContact.NodeID {
+		return &k.SelfContact, nil
+	}
+	return k.Contacts.Find(nodeId)
 }
 
 // This is the function to perform the RPC
@@ -103,7 +106,11 @@ func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
 func (k *Kademlia) LocalFindValue(searchKey ID) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
-	return "ERR: Not implemented"
+	if value, ok := k.LocalData[searchKey]; ok {
+		return "OK: " + string(value)
+	} else {
+		return "ERR: Not Found"
+	}
 }
 
 func (k *Kademlia) DoIterativeFindNode(id ID) string {

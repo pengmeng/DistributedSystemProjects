@@ -35,7 +35,7 @@ type PongMessage struct {
 func (kc *KademliaCore) Ping(ping PingMessage, pong *PongMessage) error {
 	// TODO: Finish implementation
 	pong.MsgID = CopyID(ping.MsgID)
-    // Specify the sender
+	// Specify the sender
 	// Update contact, etc
 	return nil
 }
