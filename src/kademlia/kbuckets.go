@@ -9,6 +9,18 @@ type KBuckets struct {
 	Lists  [b]*list.List
 }
 
+// =============== Public API ========================
+func (kb KBuckets) Update(c Contact) {
+	// to be implemented
+}
+
+func (kb KBuckets) Find(key ID) []Contact {
+	// to be implemented
+	return nil
+}
+
+// =======================================================
+
 func BuildKBuckets(selfId ID) *KBuckets {
 	kbuckets := new(KBuckets)
 	kbuckets.SelfId = selfId
@@ -18,7 +30,7 @@ func BuildKBuckets(selfId ID) *KBuckets {
 	return kbuckets
 }
 
-func (kb KBuckets) Find(nodeId ID) (*Contact, error) {
+func (kb KBuckets) Find_helper(nodeId ID) (*Contact, error) {
 	ele, err := kb.find(nodeId)
 	if ele != nil {
 		return ele.Value.(*Contact), err
