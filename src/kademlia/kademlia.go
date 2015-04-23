@@ -84,6 +84,27 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
+	// client Ping
+	client, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", host.String(), port))
+
+	if err != nil {
+		log.Fatal("dial error: ", err)
+	}
+
+	ping := new(PingMessage)
+	ping.MsgID = NewRandomID()
+	var pong PongMessage	
+
+	err = client.Call("KademliaCore.Ping", ping, &pong)
+
+	if err != nil {
+		log.Fatal("ERR: ", err)
+	}
+
+//	k.Contacts.add(pong.Sender)
+
+	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
+
 	return "ERR: Not implemented"
 }
 
