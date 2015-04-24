@@ -68,7 +68,6 @@ func NewKademlia(laddr string) *Kademlia {
 	}
 	k.SelfContact = Contact{k.NodeID, host, uint16(port_int)}
 
-	// need to run HandlerCantact in KBuckets but need to figure out how to deal with channel -Peng
 	return k
 }
 

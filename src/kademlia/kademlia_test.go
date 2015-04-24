@@ -1,6 +1,8 @@
 package kademlia
 
 import (
+	"container/list"
+	"fmt"
 	"net"
 	"testing"
 )
@@ -11,12 +13,22 @@ func Test_kBuckets(t *testing.T) {
 	AddrBook := BuildKBuckets(id)
 
 	// add remote Contact to the address book
-	var conCh = make(chan *Contact)
-	go AddrBook.HandleContact(conCh)
 	remoteID := NewRandomID()
-	conCh <- &Contact{remoteID, net.IPv4(127, 0, 0, 1), 7809}
-	C, _ := AddrBook.Find_helper(remoteID)
-	if !C.NodeID.Equals(remoteID) {
-		t.Error("Error!")
+	AddrBook.Update(Contact{remoteID, net.IPv4(127, 0, 0, 1), 7809})
+	C := AddrBook.Find_for_testing(remoteID)
+	if con, ok := C.(*Contact); !ok {
+		t.Error("Type is not *Contact")
+	} else {
+		if !con.NodeID.Equals(remoteID) {
+			t.Error("Error!")
+		}
+	}
+
+	notexistID := NewRandomID()
+	notexist := AddrBook.Find_for_testing(notexistID)
+	if l, ok := notexist.(*list.List); !ok {
+		t.Error("Return type is not *list.List")
+	} else {
+		fmt.Printf("Return list length is %d\n", l.Len())
 	}
 }
