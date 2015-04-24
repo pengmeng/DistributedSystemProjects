@@ -159,7 +159,7 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 	req := FindNodeRequest{k.SelfContact, NewRandomID(), searchKey}
 	var res FindNodeResult
 
-	err = client.Call("KademliaCore.Store", req, &res)
+	err = client.Call("KademliaCore.FindNode", req, &res)
 
 	if err != nil {
 		log.Fatal("ERR: ", err)
@@ -176,7 +176,7 @@ func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
 	req := FindValueRequest{k.SelfContact, NewRandomID(), searchKey}
 	var res FindValueResult
 
-	err = client.Call("KademliaCore.Store", req, &res)
+	err = client.Call("KademliaCore.FindValue", req, &res)
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
