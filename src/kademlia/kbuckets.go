@@ -9,7 +9,7 @@ type KBuckets struct {
 	Lists    [b]*list.List
 	updateCh chan *Contact
 	findCh   chan ID
-	resCh    chan interface{}
+	resCh    chan []Contact
 }
 
 // =============== Public API ========================
@@ -18,12 +18,6 @@ func (kb *KBuckets) Update(c Contact) {
 }
 
 func (kb KBuckets) Find(nodeId ID) []Contact {
-	kb.findCh <- nodeId
-	//result := <-kb.resCh
-	return nil
-}
-
-func (kb KBuckets) Find_for_testing(nodeId ID) interface{} {
 	kb.findCh <- nodeId
 	result := <-kb.resCh
 	return result
@@ -39,7 +33,7 @@ func BuildKBuckets(selfId ID) *KBuckets {
 	}
 	kbuckets.updateCh = make(chan *Contact)
 	kbuckets.findCh = make(chan ID)
-	kbuckets.resCh = make(chan interface{})
+	kbuckets.resCh = make(chan []Contact)
 	go kbuckets.handleContact()
 	return kbuckets
 }
@@ -96,11 +90,19 @@ func (kb *KBuckets) handleContact() {
 		case nodeId := <-kb.findCh:
 			index := nodeId.Xor(kb.SelfId).PrefixLen()
 			if result, err := kb.find_contact(nodeId); err != nil {
-				l := kb.Lists[index]
+				l := make([]Contact, 0, k)
+				copy2array(&l, kb.Lists[index])
 				kb.resCh <- l
 			} else {
-				kb.resCh <- result
+				l := []Contact{*result}
+				kb.resCh <- l
 			}
 		}
+	}
+}
+
+func copy2array(s *[]Contact, l *list.List) {
+	for each := l.Front(); each != nil; each = each.Next() {
+		*s = append(*s, *each.Value.(*Contact))
 	}
 }
