@@ -91,8 +91,7 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	if nodeId == k.SelfContact.NodeID {
 		return &k.SelfContact, nil
 	}
-	return nil, nil
-	//return k.AddrBook.Find(nodeId), nil
+	return k.AddrBook.find_contact(nodeId)
 }
 
 func (k Kademlia) MessageWorker() {
@@ -162,7 +161,7 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 
 	k.AddrBook.Update(pong.Sender)
 
-	return "OK: Ping " + host.String()
+	return "OK: Ping " + pong.Sender.NodeID.AsString()
 }
 
 func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
@@ -181,7 +180,7 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
 		log.Fatal("ERR: ", err)
 	}
 
-	return "OK: Store "
+	return "OK:"
 }
 
 func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
@@ -213,14 +212,20 @@ func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
-	return "ERR: Not implemented"
+	if res.Value != nil {
+		return "OK: Found value: " + string(res.Value)
+	} else if res.Nodes != nil {
+		return "OK: Found nodes: " + string(len(res.Nodes))
+	} else {
+		return "Err: Not Found"
+	}
 }
 
 func (k *Kademlia) LocalFindValue(searchKey ID) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
-	if value, ok := k.LocalData[searchKey]; ok {
-		return "OK: " + string(value)
+	if value, err := k.getData(searchKey); err == nil {
+		return "OK: Found value: " + string(value)
 	} else {
 		return "ERR: Not Found"
 	}

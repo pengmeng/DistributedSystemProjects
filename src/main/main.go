@@ -1,3 +1,8 @@
+/*
+ * Ruoqian Liu (rll943)
+ *
+ * Peng Meng (pmo885)
+ */
 package main
 
 import (
@@ -63,9 +68,9 @@ func main() {
 			log.Fatal(err)
 		}
 		line = strings.TrimSpace(line)
-        if line == ""{
-            continue
-        }
+		if line == "" {
+			continue
+		}
 		resp := executeLine(kadem, line)
 		if resp == "quit" {
 			quit = true

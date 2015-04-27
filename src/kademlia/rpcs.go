@@ -35,6 +35,7 @@ type PongMessage struct {
 func (kc *KademliaCore) Ping(ping PingMessage, pong *PongMessage) error {
 	// TODO: Finish implementation
 	pong.MsgID = CopyID(ping.MsgID)
+	pong.Sender = kc.kademlia.SelfContact
 	go kc.kademlia.AddrBook.Update(ping.Sender)
 	return nil
 }
@@ -112,12 +113,13 @@ func (kc *KademliaCore) FindValue(req FindValueRequest, res *FindValueResult) er
 	go kc.kademlia.AddrBook.Update(req.Sender)
 
 	value, err := kc.kademlia.getData(req.Key)
-	if err != nil {
+	if err == nil {
 		res.Value = value
+		res.MsgID = CopyID(req.MsgID)
 	} else {
 		res.MsgID = CopyID(req.MsgID)
 		res.Nodes = kc.kademlia.AddrBook.Find(req.Key)
 	}
-	
+
 	return nil
 }

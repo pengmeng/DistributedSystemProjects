@@ -19,9 +19,13 @@ func (kb *KBuckets) Update(c Contact) {
 }
 
 func (kb KBuckets) Find(nodeId ID) []Contact {
-	kb.findCh <- nodeId
-	result := <-kb.resCh
-	return result
+	if kb.SelfId.Equals(nodeId) {
+		return []Contact{kb.SelfContact}
+	} else {
+		kb.findCh <- nodeId
+		result := <-kb.resCh
+		return result
+	}
 }
 
 // =======================================================
