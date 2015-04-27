@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"testing"
@@ -49,4 +50,27 @@ func Test_MultiContacts(t *testing.T) {
 	for k, v := range rdict {
 		fmt.Printf("Distance %d has contacts %d\n", k, v)
 	}
+}
+
+func Test_Kademlia(t *testing.T) {
+	k := NewKademlia("127.0.0.1:7809")
+	key := NewRandomID()
+	value := []byte("hello world")
+
+	k.addData(Pair{key, value})
+
+	res, err := k.getData(key)
+	if !bytes.Equal(res, value) || err != nil {
+		t.Error("Retrieve wrong value!")
+	}
+
+	res, err = k.getData(NewRandomID())
+	if res != nil || err == nil {
+		t.Error("Error dealing with non existent key")
+	}
+
+}
+
+func Test_PING(t *testing.T) {
+
 }
