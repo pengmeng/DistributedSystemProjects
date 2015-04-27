@@ -9,8 +9,7 @@ import (
 
 func Test_Find(t *testing.T) {
 	id := NewRandomID()
-
-	AddrBook := BuildKBuckets(id)
+	AddrBook := BuildKBuckets(Contact{id, net.IPv4(127, 0, 0, 1), 6999})
 
 	// add remote Contact to the address book
 	remoteID := NewRandomID()
@@ -33,9 +32,9 @@ func Test_Find(t *testing.T) {
 
 func Test_MultiContacts(t *testing.T) {
 	self := NewRandomID()
-	AddrBook := BuildKBuckets(self)
+	AddrBook := BuildKBuckets(Contact{self, net.IPv4(127, 0, 0, 1), 6999})
 	start := 7000
-	end := start + 160*20 - 1
+	end := start + 100
 	rdict := make(map[int]int)
 	for i := start; i <= end; i++ {
 		id := NewRandomID()

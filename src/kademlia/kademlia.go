@@ -40,7 +40,6 @@ func NewKademlia(laddr string) *Kademlia {
 	k := new(Kademlia)
 	k.NodeID = NewRandomID()
 	k.LocalData = make(map[ID][]byte)
-	k.AddrBook = BuildKBuckets(k.NodeID)
 
 	k.addDataChan = make(chan Pair)
 	k.findDataChan = make(chan ID)
@@ -72,7 +71,7 @@ func NewKademlia(laddr string) *Kademlia {
 		}
 	}
 	k.SelfContact = Contact{k.NodeID, host, uint16(port_int)}
-
+	k.AddrBook = BuildKBuckets(k.SelfContact)
 	return k
 }
 
@@ -126,6 +125,21 @@ func (k Kademlia) getData(key ID) ([]byte, error) {
 		return result, nil
 	}
 	return nil, &NotFoundError{key, "Key does not exist"}
+}
+
+func PingHelper(self Contact, host net.IP, port uint16) (*PongMessage, error) {
+	client, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", host.String(), port))
+	if err != nil {
+		return nil, err
+	}
+	ping := PingMessage{self, NewRandomID()}
+	var pong PongMessage
+
+	err = client.Call("KademliaCore.Ping", ping, &pong)
+	if err != nil {
+		return nil, err
+	}
+	return &pong, nil
 }
 
 // ========================== RPC client code =========================

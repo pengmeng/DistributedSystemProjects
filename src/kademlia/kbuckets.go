@@ -5,11 +5,12 @@ import (
 )
 
 type KBuckets struct {
-	SelfId   ID
-	Lists    [b]*list.List
-	updateCh chan *Contact
-	findCh   chan ID
-	resCh    chan []Contact
+	SelfContact Contact
+	SelfId      ID
+	Lists       [b]*list.List
+	updateCh    chan *Contact
+	findCh      chan ID
+	resCh       chan []Contact
 }
 
 // =============== Public API ========================
@@ -25,9 +26,10 @@ func (kb KBuckets) Find(nodeId ID) []Contact {
 
 // =======================================================
 
-func BuildKBuckets(selfId ID) *KBuckets {
+func BuildKBuckets(self Contact) *KBuckets {
 	kbuckets := new(KBuckets)
-	kbuckets.SelfId = selfId
+	kbuckets.SelfContact = self
+	kbuckets.SelfId = self.NodeID
 	for i := 0; i < b; i++ {
 		kbuckets.Lists[i] = list.New()
 	}
@@ -61,9 +63,13 @@ func (kb KBuckets) find_element(nodeId ID) (*list.Element, error) {
 func (kb *KBuckets) add(index int, con *Contact) {
 	l := kb.Lists[index]
 	if l.Len() == k {
-		// need to ping front node
-		l.Remove(l.Front())
-		l.PushBack(con)
+		node := l.Front().Value.(*Contact)
+		if _, err := PingHelper(kb.SelfContact, node.Host, node.Port); err != nil {
+			l.Remove(l.Front())
+			l.PushBack(con)
+		} else {
+			l.MoveToBack(l.Front())
+		}
 	} else {
 		l.PushBack(con)
 	}
