@@ -121,7 +121,7 @@ func (kc *KademliaCore) FindValue(req FindValueRequest, res *FindValueResult) er
 		res.MsgID = CopyID(req.MsgID)
 		res.Value = nil
 		res.Nodes = kc.kademlia.AddrBook.Find(req.Key)
-		res.Error = err
+		res.Err = err
 	}
 	
 	return nil
