@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"bytes"
 	"container/list"
 	"fmt"
 	"net"
@@ -31,4 +32,27 @@ func Test_kBuckets(t *testing.T) {
 	} else {
 		fmt.Printf("Return list length is %d\n", l.Len())
 	}
+}
+
+func Test_Kademlia(t *testing.T) {
+	k := NewKademlia("127.0.0.1:7809")
+	key := NewRandomID()
+	value := []byte("hello world")
+
+	k.addData(Pair{key, value})
+
+	res, err := k.getData(key)
+	if !bytes.Equal(res, value) || err != nil {
+		t.Error("Retrieve wrong value!")
+	}
+
+	res, err = k.getData(NewRandomID())
+	if res != nil || err == nil {
+		t.Error("Error dealing with non existent key")
+	}
+
+}
+
+func Test_PING(t *testing.T) {
+
 }

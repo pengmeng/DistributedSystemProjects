@@ -30,7 +30,9 @@ type Kademlia struct {
 	LocalData   map[ID][]byte
 	AddrBook    *KBuckets
 
-	addDataChan chan Pair
+	addDataChan  chan Pair
+	findDataChan chan ID
+	resChan      chan []byte
 }
 
 func NewKademlia(laddr string) *Kademlia {
@@ -39,9 +41,12 @@ func NewKademlia(laddr string) *Kademlia {
 	k.NodeID = NewRandomID()
 	k.LocalData = make(map[ID][]byte)
 	k.AddrBook = BuildKBuckets(k.NodeID)
-	k.addDataChan = make(chan Pair)
 
-	go k.addDataWorker()
+	k.addDataChan = make(chan Pair)
+	k.findDataChan = make(chan ID)
+	k.resChan = make(chan []byte)
+
+	go k.MessageWorker()
 
 	// Set up RPC server
 	// NOTE: KademliaCore is just a wrapper around Kademlia. This type includes
@@ -91,17 +96,36 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	//return k.AddrBook.Find(nodeId), nil
 }
 
-func (k *Kademlia) addDataWorker() {
-	// loop forever, wait for input from addDataChan
-	// add pair of key, value to map
+func (k Kademlia) MessageWorker() {
+	// loop forever
 	for {
-		pair := <-k.addDataChan
-		k.LocalData[pair.key] = pair.value
+		select {
+		case pair := <-k.addDataChan:
+			k.LocalData[pair.key] = pair.value
+
+		case key := <-k.findDataChan:
+			// check if key is in LocalData
+			if value, ok := k.LocalData[key]; ok {
+				k.resChan <- value
+			} else {
+				k.resChan <- nil
+			}
+		}
 	}
 }
 
-func (k *Kademlia) addData(p Pair) {
+func (k Kademlia) addData(p Pair) {
 	k.addDataChan <- p
+}
+
+func (k Kademlia) getData(key ID) ([]byte, error) {
+	k.findDataChan <- key
+	result := <-k.resChan
+
+	if result != nil {
+		return result, nil
+	}
+	return nil, &NotFoundError{key, "Key does not exist"}
 }
 
 // ========================== RPC client code =========================
@@ -109,9 +133,7 @@ func (k *Kademlia) addData(p Pair) {
 func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
-	// client Ping
 	client, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", host.String(), port))
-
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
@@ -120,34 +142,32 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 	var pong PongMessage
 
 	err = client.Call("KademliaCore.Ping", ping, &pong)
-
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
 
 	k.AddrBook.Update(pong.Sender)
 
-	return "OK: Ping successful"
+	return "OK: Ping " + host.String()
 }
 
 func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
 	client, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", (*contact).Host.String(), (*contact).Port))
-
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
 
 	req := StoreRequest{k.SelfContact, NewRandomID(), key, value}
 	var res StoreResult
-	err = client.Call("KademliaCore.Store", req, &res)
 
+	err = client.Call("KademliaCore.Store", req, &res)
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
 
-	return "OK: store successfully"
+	return "OK: Store "
 }
 
 func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
