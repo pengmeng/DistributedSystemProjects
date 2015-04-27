@@ -146,21 +146,11 @@ func PingHelper(self Contact, host net.IP, port uint16) (*PongMessage, error) {
 func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 	// TODO: Implement
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
-	client, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", host.String(), port))
+	pong, err := PingHelper(k.SelfContact, host, port)
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
-
-	ping := PingMessage{k.SelfContact, NewRandomID()}
-	var pong PongMessage
-
-	err = client.Call("KademliaCore.Ping", ping, &pong)
-	if err != nil {
-		log.Fatal("ERR: ", err)
-	}
-
 	k.AddrBook.Update(pong.Sender)
-
 	return "OK: Ping " + pong.Sender.NodeID.AsString()
 }
 
