@@ -187,7 +187,7 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 		log.Fatal("ERR: ", err)
 	}
 
-	return "OK: Find nodes"
+	return "OK: Found Nodes"
 }
 
 func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
