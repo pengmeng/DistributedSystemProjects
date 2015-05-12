@@ -46,7 +46,8 @@ func main() {
 	// Confirm our server is up with a PING request and then exit.
 	// Your code should loop forever, reading instructions from stdin and
 	// printing their results to stdout. See README.txt for more details.
-	client, err := rpc.DialHTTP("tcp", firstPeerStr)
+	_, port, _ := net.SplitHostPort(firstPeerStr)
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+port)
 	if err != nil {
 		log.Fatal("DialHTTP: ", err)
 	}
@@ -251,7 +252,7 @@ func executeLine(k *kademlia.Kademlia, line string) (response string) {
 			response = "usage: iterativeFindNode [nodeID]"
 			return
 		}
-		id, err := kademlia.IDFromString(toks[2])
+		id, err := kademlia.IDFromString(toks[1])
 		if err != nil {
 			response = "ERR: Provided an invalid node ID(" + toks[1] + ")"
 			return
@@ -277,7 +278,7 @@ func executeLine(k *kademlia.Kademlia, line string) (response string) {
 			response = "usage: iterativeFindValue [key]"
 			return
 		}
-		key, err := kademlia.IDFromString(toks[2])
+		key, err := kademlia.IDFromString(toks[1])
 		if err != nil {
 			response = "ERR: Provided an invalid key (" + toks[1] + ")"
 			return
