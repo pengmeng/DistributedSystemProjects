@@ -211,6 +211,7 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 		return "ERR: " + err.Error()
 	}
 	for _, each := range res.Nodes {
+		fmt.Println("Found node: " + each.NodeID.AsString())
 		k.AddrBook.Update(each)
 	}
 	return fmt.Sprintf("OK: Found %d Nodes", len(res.Nodes))
@@ -240,7 +241,10 @@ func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
 	if res.Value != nil {
 		return "OK: Found value: " + string(res.Value)
 	} else if res.Nodes != nil {
-		return "OK: Found nodes: " + string(len(res.Nodes))
+		for _, each := range res.Nodes {
+			k.AddrBook.Update(each)
+		}
+		return fmt.Sprintf("OK: Found nodes: %d\n", len(res.Nodes))
 	} else {
 		return "ERR: Not Found"
 	}
@@ -333,6 +337,69 @@ func (k *Kademlia) DoIterativeStore(key ID, value []byte) string {
 	return buffer.String()
 }
 func (k *Kademlia) DoIterativeFindValue(key ID) string {
-	// For project 2!
-	return "ERR: Not implemented"
+	contacts, value := k.iterativeFindValue(key)
+	var buffer bytes.Buffer
+	if value != "" {
+		k.addData(Pair{key, []byte(value)})
+		for _, each := range contacts {
+			s := k.DoStore(&each, key, []byte(value))
+			if strings.Contains(s, "OK:") {
+				buffer.WriteString(each.NodeID.AsString() + "\n")
+			}
+		}
+		buffer.WriteString(value)
+	} else {
+		for _, each := range contacts {
+			buffer.WriteString(each.NodeID.AsString() + "\n")
+		}
+	}
+	return buffer.String()
+}
+
+func (k *Kademlia) iterativeFindValue(id ID) ([]Contact, string) {
+	valueCh := make(chan *Contact, alpha)
+	resCh := make(chan string, alpha)
+	go k.callFindValue(id, valueCh, resCh)
+	shortlist := k.AddrBook.Find(id)
+	statusMap := make(map[ID]int)
+	for !validate(&statusMap, &shortlist) {
+		todo := make([]Contact, 0, 3)
+		j := 0
+		for i := 0; j < alpha && i < len(shortlist); i++ {
+			each := shortlist[i]
+			if _, ok := statusMap[each.NodeID]; !ok {
+				valueCh <- &each
+				statusMap[each.NodeID] = 0
+				todo = append(todo, each)
+				j++
+			}
+		}
+		for i := 0; i < len(todo); i++ {
+			select {
+			case s := <-resCh:
+				if strings.Contains(s, "value") {
+					value := s[17:]
+					return shortlist, value
+				} else if strings.Contains(s, "OK:") {
+					statusMap[todo[i].NodeID] = 1
+				} else {
+					statusMap[todo[i].NodeID] = 2
+					k.AddrBook.Remove(todo[i].NodeID)
+				}
+			case <-time.After(time.Millisecond * 300):
+				statusMap[todo[i].NodeID] = 2
+			}
+		}
+		shortlist = k.AddrBook.Find(id)
+	}
+	return shortlist, ""
+}
+
+func (k *Kademlia) callFindValue(id ID, valueCh chan *Contact, resCh chan string) {
+	for {
+		select {
+		case con := <-valueCh:
+			resCh <- k.DoFindValue(con, id)
+		}
+	}
 }

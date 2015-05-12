@@ -170,9 +170,7 @@ func copy2array(s *[]Contact, l *list.List, nodeId ID) {
 		if len(*s) == k {
 			break
 		}
-		if !nodeId.Equals(each.Value.(*Contact).NodeID) {
-			*s = append(*s, *each.Value.(*Contact))
-		}
+		*s = append(*s, *each.Value.(*Contact))
 	}
 }
 

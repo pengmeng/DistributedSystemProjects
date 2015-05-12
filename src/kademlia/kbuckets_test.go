@@ -94,8 +94,8 @@ func Test_FindWithLessThanK(t *testing.T) {
 	if result := AddrBook.Find(idForTest); result == nil {
 		t.Error("Return nothing.")
 	} else {
-		if len(result) != count {
-			t.Errorf("Return %d contact but expect %d\n", len(result), count)
+		if len(result) != count+1 {
+			t.Errorf("Return %d contact but expect %d\n", len(result), count+1)
 		}
 	}
 
