@@ -261,7 +261,7 @@ func executeLine(k *kademlia.Kademlia, line string) (response string) {
 
 	case toks[0] == "iterativeStore":
 		// perform an iterative store
-		if len(toks) < 2 || len(toks) > 2 {
+		if len(toks) < 3 || len(toks) > 3 {
 			response = "usage: iterativeStore [key] [value]"
 			return
 		}

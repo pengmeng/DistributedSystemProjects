@@ -322,8 +322,15 @@ func (k *Kademlia) callFindNode(id ID, findCh chan *Contact, resCh chan string) 
 }
 
 func (k *Kademlia) DoIterativeStore(key ID, value []byte) string {
-	// For project 2!
-	return "ERR: Not implemented"
+	contacts := k.iterativeFindNode(key)
+	var buffer bytes.Buffer
+	for _, each := range contacts {
+		s := k.DoStore(&each, key, value)
+		if strings.Contains(s, "OK:") {
+			buffer.WriteString(each.NodeID.AsString() + "\n")
+		}
+	}
+	return buffer.String()
 }
 func (k *Kademlia) DoIterativeFindValue(key ID) string {
 	// For project 2!
