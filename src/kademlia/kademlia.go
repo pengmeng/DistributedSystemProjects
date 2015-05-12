@@ -91,12 +91,7 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	if nodeId == k.SelfContact.NodeID {
 		return &k.SelfContact, nil
 	}
-	result := k.AddrBook.Find(nodeId)
-	if len(result) == 1 {
-		return &result[0], nil
-	} else {
-		return nil, &NotFoundError{nodeId, "Not Found"}
-	}
+	return k.AddrBook.FindOne(nodeId)
 }
 
 func (k Kademlia) MessageWorker() {
@@ -189,10 +184,15 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
-	for each := range res.Nodes {
+	for _, each := range res.Nodes {
+		fmt.Println(each.NodeID.AsString())
 		go k.AddrBook.Update(each)
 	}
-	return "OK: Found Nodes"
+	if res.Nodes != nil {
+		return fmt.Sprintf("OK: Found %d Nodes", len(res.Nodes))
+	} else {
+		return "ERR: Not Found"
+	}
 }
 
 func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {

@@ -53,11 +53,13 @@ func main() {
 
 	ping := new(kademlia.PingMessage)
 	ping.MsgID = kademlia.NewRandomID()
+	ping.Sender = kadem.SelfContact
 	var pong kademlia.PongMessage
 	err = client.Call("KademliaCore.Ping", ping, &pong)
 	if err != nil {
 		log.Fatal("Call: ", err)
 	}
+	kadem.AddrBook.Update(pong.Sender)
 	log.Printf("ping msgID: %s\n", ping.MsgID.AsString())
 	log.Printf("pong msgID: %s\n", pong.MsgID.AsString())
 

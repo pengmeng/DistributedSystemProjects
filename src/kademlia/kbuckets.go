@@ -9,8 +9,12 @@ type KBuckets struct {
 	SelfId      ID
 	Lists       [b]*list.List
 	updateCh    chan *Contact
-	findCh      chan ID
-	resCh       chan []Contact
+	//channels for find a single contact
+	findCh chan ID
+	resCh  chan *Contact
+	//channels for find k closest contacts with an ID
+	closestCh    chan ID
+	closestResCh chan []Contact
 }
 
 // =============== Public API ========================
@@ -19,12 +23,17 @@ func (kb *KBuckets) Update(c Contact) {
 }
 
 func (kb KBuckets) Find(nodeId ID) []Contact {
-	if kb.SelfId.Equals(nodeId) {
-		return []Contact{kb.SelfContact}
+	kb.closestCh <- nodeId
+	result := <-kb.closestResCh
+	return result
+}
+
+func (kb *KBuckets) FindOne(nodeId ID) (*Contact, error) {
+	kb.findCh <- nodeId
+	if result := <-kb.resCh; result != nil {
+		return result, nil
 	} else {
-		kb.findCh <- nodeId
-		result := <-kb.resCh
-		return result
+		return nil, &NotFoundError{nodeId, "Not Found"}
 	}
 }
 
@@ -39,7 +48,9 @@ func BuildKBuckets(self Contact) *KBuckets {
 	}
 	kbuckets.updateCh = make(chan *Contact)
 	kbuckets.findCh = make(chan ID)
-	kbuckets.resCh = make(chan []Contact)
+	kbuckets.resCh = make(chan *Contact)
+	kbuckets.closestCh = make(chan ID)
+	kbuckets.closestResCh = make(chan []Contact)
 	go kbuckets.handleContact()
 	return kbuckets
 }
@@ -98,21 +109,40 @@ func (kb *KBuckets) handleContact() {
 				kb.update(index, ele)
 			}
 		case nodeId := <-kb.findCh:
-			index := nodeId.Xor(kb.SelfId).PrefixLen()
 			if result, err := kb.find_contact(nodeId); err != nil {
-				l := make([]Contact, 0, k)
-				copy2array(&l, kb.Lists[index])
-				kb.resCh <- l
+				kb.resCh <- nil
 			} else {
-				l := []Contact{*result}
-				kb.resCh <- l
+				kb.resCh <- result
 			}
+		case nodeId := <-kb.closestCh:
+			index := nodeId.Xor(kb.SelfId).PrefixLen()
+			l := make([]Contact, 0, k)
+			kb.feedWithCLosest(&l, index)
+			kb.closestResCh <- l
+		}
+	}
+}
+
+func (kb *KBuckets) feedWithCLosest(s *[]Contact, index int) {
+	for i := index; i < b; i++ {
+		copy2array(s, kb.Lists[i])
+		if len(*s) == k {
+			return
+		}
+	}
+	for i := index - 1; i >= 0; i-- {
+		copy2array(s, kb.Lists[i])
+		if len(*s) == k {
+			return
 		}
 	}
 }
 
 func copy2array(s *[]Contact, l *list.List) {
 	for each := l.Front(); each != nil; each = each.Next() {
+		if len(*s) == k {
+			break
+		}
 		*s = append(*s, *each.Value.(*Contact))
 	}
 }
