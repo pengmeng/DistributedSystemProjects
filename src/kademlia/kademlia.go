@@ -304,6 +304,7 @@ func (k *Kademlia) iterativeFindNode(id ID) []Contact {
 					statusMap[todo[i].NodeID] = 1
 				} else {
 					statusMap[todo[i].NodeID] = 2
+					fmt.Println(todo[i].NodeID.AsString() + " " + s)
 					k.AddrBook.Remove(todo[i].NodeID)
 				}
 			case <-time.After(time.Millisecond * 1000):

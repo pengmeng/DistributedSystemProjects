@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"testing"
 )
@@ -51,9 +52,6 @@ func Test_FindWithMoreThanK(t *testing.T) {
 	self := NewRandomID()
 	AddrBook := BuildKBuckets(Contact{self, net.IPv4(127, 0, 0, 1), 7000})
 
-	idForTest := NewRandomID()
-	AddrBook.Update(Contact{idForTest, net.IPv4(127, 0, 0, 1), uint16(7001)})
-
 	start := 7002
 	end := start + 50
 	for i := start; i <= end; i++ {
@@ -61,11 +59,20 @@ func Test_FindWithMoreThanK(t *testing.T) {
 		AddrBook.Update(Contact{id, net.IPv4(127, 0, 0, 1), uint16(i)})
 	}
 
+	idForTest := NewRandomID()
+	AddrBook.Update(Contact{idForTest, net.IPv4(127, 0, 0, 1), uint16(7001)})
+
 	if result := AddrBook.Find(idForTest); result == nil {
 		t.Error("Return nothing.")
 	} else {
 		if len(result) != k {
 			t.Errorf("Return %d contact but expect %d\n", len(result), k)
+		} else {
+			for _, each := range result {
+				dis := each.NodeID.Xor(idForTest).PrefixLen()
+				fmt.Printf("%d ", dis)
+			}
+			fmt.Println()
 		}
 	}
 }
@@ -90,6 +97,12 @@ func Test_FindWithLessThanK(t *testing.T) {
 	} else {
 		if len(result) != count+1 {
 			t.Errorf("Return %d contact but expect %d\n", len(result), count+1)
+		} else {
+			for _, each := range result {
+				dis := each.NodeID.Xor(idForTest).PrefixLen()
+				fmt.Printf("%d ", dis)
+			}
+			fmt.Println()
 		}
 	}
 
