@@ -2,7 +2,6 @@ package kademlia
 
 import (
 	"bytes"
-	"fmt"
 	"net"
 	"testing"
 )
@@ -68,11 +67,6 @@ func Test_FindWithMoreThanK(t *testing.T) {
 		if len(result) != k {
 			t.Errorf("Return %d contact but expect %d\n", len(result), k)
 		}
-		for _, each := range result {
-			dis := each.NodeID.Xor(idForTest).PrefixLen()
-			fmt.Printf("%d ", dis)
-		}
-		fmt.Println()
 	}
 }
 
@@ -106,11 +100,6 @@ func Test_FindWithLessThanK(t *testing.T) {
 		if len(result) != count+1 {
 			t.Errorf("Return %d contact but expect %d\n", len(result), count+1)
 		}
-		for _, each := range result {
-			dis := each.NodeID.Xor(newID).PrefixLen()
-			fmt.Printf("%d ", dis)
-		}
-		fmt.Println()
 	}
 }
 
@@ -134,7 +123,7 @@ func Test_FindThree(t *testing.T) {
 }
 
 func Test_LocalData(t *testing.T) {
-	k := NewKademlia("127.0.0.1:7809")
+	k := NewKademlia("127.0.0.1:7000")
 	key := NewRandomID()
 	value := []byte("hello world")
 
@@ -149,5 +138,4 @@ func Test_LocalData(t *testing.T) {
 	if res != nil || err == nil {
 		t.Error("Not exist key found")
 	}
-
 }

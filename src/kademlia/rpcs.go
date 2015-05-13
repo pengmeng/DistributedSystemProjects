@@ -62,7 +62,7 @@ type StoreResult struct {
 func (kc *KademliaCore) Store(req StoreRequest, res *StoreResult) error {
 	// TODO: Implement.
 	go kc.kademlia.AddrBook.Update(req.Sender)
-	go kc.kademlia.addData(Pair{req.Key, req.Value})
+	kc.kademlia.addData(Pair{req.Key, req.Value})
 	res.MsgID = CopyID(req.MsgID)
 	return nil
 }

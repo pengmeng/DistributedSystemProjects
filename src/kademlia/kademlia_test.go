@@ -1,152 +1,176 @@
 package kademlia
 
 import (
-    "testing"
-    "net"
-    "strconv"
-    "fmt"
-    "bytes"
+	"fmt"
+	"net"
+	"strconv"
+	"strings"
+	"testing"
 )
 
 // ======================= Primitive operations ===========================
-func StringToIpPort(laddr string) (ip net.IP, port uint16, err error){
-    hostString, portString, err := net.SplitHostPort(laddr)
-    if err != nil {
-        return
-    }
-    ipStr, err := net.LookupHost(hostString)
-    if err != nil {
-        return
-    }
-    for i := 0; i < len(ipStr); i++ {
-        ip = net.ParseIP(ipStr[i])
-        if ip.To4() != nil {
-            break
-        }
-    }
-    portInt, err := strconv.Atoi(portString)
-    port = uint16(portInt)
-    return
+func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
+	hostString, portString, err := net.SplitHostPort(laddr)
+	if err != nil {
+		return
+	}
+	ipStr, err := net.LookupHost(hostString)
+	if err != nil {
+		return
+	}
+	for i := 0; i < len(ipStr); i++ {
+		ip = net.ParseIP(ipStr[i])
+		if ip.To4() != nil {
+			break
+		}
+	}
+	portInt, err := strconv.Atoi(portString)
+	port = uint16(portInt)
+	return
 }
 
 func TestPing(t *testing.T) {
-    instance1 := NewKademlia("localhost:7890")
-    instance2 := NewKademlia("localhost:7891")
-    host2, port2, _ := StringToIpPort("localhost:7891")
-    instance1.DoPing(host2, port2)
-    contact2, err := instance1.FindContact(instance2.NodeID)
-    if err != nil {
-        t.Error("Instance 2's contact not found in Instance 1's contact list")
-        return
-    }
-    contact1, err := instance2.FindContact(instance1.NodeID)
-    if err != nil {
-        t.Error("Instance 1's contact not found in Instance 2's contact list")
-        return
-    }
-    if contact1.NodeID != instance1.NodeID {
-        t.Error("Instance 1 ID incorrectly stored in Instance 2's contact list")
-    }
-    if contact2.NodeID != instance2.NodeID {
-        t.Error("Instance 2 ID incorrectly stored in Instance 1's contact list")
-    }
-    return
+	instance1 := NewKademlia("localhost:7890")
+	instance2 := NewKademlia("localhost:7891")
+	host2, port2, _ := StringToIpPort("localhost:7891")
+	instance1.DoPing(host2, port2)
+	contact2, err := instance1.FindContact(instance2.NodeID)
+	if err != nil {
+		t.Error("Instance 2's contact not found in Instance 1's contact list")
+		return
+	}
+	contact1, err := instance2.FindContact(instance1.NodeID)
+	if err != nil {
+		t.Error("Instance 1's contact not found in Instance 2's contact list")
+		return
+	}
+	assertEqual(
+		instance1.NodeID.AsString(),
+		contact1.NodeID.AsString(),
+		"Instance 1 ID incorrectly stored in Instance 2's contact list",
+		t)
+	assertEqual(
+		instance2.NodeID.AsString(),
+		contact2.NodeID.AsString(),
+		"Instance 2 ID incorrectly stored in Instance 1's contact list",
+		t)
 }
 
-func TestStoreFind(t *testing.T) {
-    instance1 := NewKademlia("localhost:7892")
-    instance2 := NewKademlia("localhost:7893")
-
-    id := NewRandomID()
-    value := []byte("hello world!")
-
-    // Primitive DoStore
-    instance1.DoStore(&instance2.SelfContact, id, value)
-    
-    res := instance2.LocalFindValue(id)
-    if res != ("OK: Found value: " + string(value)) {
-        t.Error("Instance 2 store wrong value!")
-    }
-
-    // Primitive DoFindValue
-    res = instance1.DoFindValue(&instance2.SelfContact, id)
-    if res != ("OK: Found value: " + string(value)) {
-        t.Error("DoFindValue from Instance 1 retrieve wrong value!")   
-    }
-
-    // Some problem with gob error??
-    // res = instance1.DoFindValue(&instance2.SelfContact, NewRandomID())
-    // fmt.Println(res)
-    // // if res != ("OK: Found value: " + string(value)) {
-    // //     t.Error("DoFindValue from Instance 1 retrieve wrong value!")   
-    // // }
+func Test_StoreFind(t *testing.T) {
+	instance1 := NewKademlia("localhost:7892")
+	instance2 := NewKademlia("localhost:7893")
+	key := NewRandomID()
+	value := []byte("hello world!")
+	instance1.DoStore(&instance2.SelfContact, key, value)
+	assertEqual(
+		"OK: Found value: "+string(value),
+		instance2.LocalFindValue(key),
+		"Instance 2 store wrong value!",
+		t)
+	assertEqual(
+		"OK: Found value: "+string(value),
+		instance1.DoFindValue(&instance2.SelfContact, key),
+		"DoFindValue from Instance 1 retrieve wrong value!",
+		t)
+	assertContains(
+		instance1.DoFindValue(&instance2.SelfContact, NewRandomID()),
+		"OK: Found nodes:",
+		"DoFindValue from Instance 1 retrieve wrong value!",
+		t)
 }
-
 
 // =============================== Iterative ==============================
-// Global variable, any better design??
 var instance = SetUpNetwork()
 
 func SetUpNetwork() []*Kademlia {
-    // Create the network
-    ports := []uint16{7894, 7895, 7896, 7897, 7898, 7899}
-    var instance []*Kademlia
-
-    for _, p := range ports{
-        instance = append(instance, NewKademlia("localhost:" + strconv.Itoa(int(p))))
-    }
-
-    for i := 1; i < len(ports); i++ {
-        instance[i].DoPing(net.IPv4(127,0,0,1), ports[i - 1])
-    }
-    fmt.Println("Done creating network")
-    return instance
+	ports := []uint16{7894, 7895, 7896, 7897, 7898, 7899, 7900, 7901, 7902, 7903}
+	var instance []*Kademlia
+	for _, p := range ports {
+		instance = append(instance, NewKademlia("localhost:"+strconv.Itoa(int(p))))
+	}
+	fmt.Printf("Testing with %d nodes:\n", len(ports))
+	fmt.Println("Node 0: " + instance[0].NodeID.AsString())
+	for i := 1; i < len(ports); i++ {
+		instance[i].DoPing(net.IPv4(127, 0, 0, 1), ports[i-1])
+		fmt.Printf("Node %d: "+instance[i].NodeID.AsString()+"\n", i)
+	}
+	fmt.Println("Done creating network")
+	return instance
 }
 
-func TestIterativeFindNode(t *testing.T) {
-    // Use Node ID to look up, Need to return that node
-    N := len(instance)
-
-    for i := 0; i < N; i++ {
-        //if j := i it's not working
-        for j := i + 1; j < N; j++ {
-            contacts := instance[i].iterativeFindNode(instance[j].NodeID)
-            found := false
-            for _, c := range contacts {
-                if  c.Equal(instance[j].SelfContact) {
-                    found = true
-                }
-            }
-            if !found {
-                t.Error(fmt.Sprintf("Iterative Find couldn't find node %d from node %d", j, i))
-            }        
-        }
-    }
+// For each node, try to find other node id and should get it in return list.
+func Test_IterativeFindNode(t *testing.T) {
+	N := len(instance)
+	for i := 0; i < N; i++ {
+		fmt.Println("Testing: " + instance[i].NodeID.AsString())
+		for j := 0; j < N; j++ {
+			if j == i {
+				continue
+			}
+			contacts := instance[i].iterativeFindNode(instance[j].NodeID)
+			found := false
+			for _, c := range contacts {
+				if c.Equal(instance[j].SelfContact) {
+					found = true
+					break
+				}
+			}
+			assertTrue(
+				found,
+				fmt.Sprintf("Cannot find node %d from node %d", j, i),
+				t)
+		}
+	}
 }
 
-func TestDoIterativeStoreAndIterativeFind(t *testing.T) {
-    N := len(instance)
-
-    for i := 0; i < N; i++ {
-        //if j := i it's not working
-        for j := i + 1; j < N; j++ {
-     
-            key := instance[j].NodeID
-            value := []byte(NewRandomID().AsString())
-            
-            instance[i].DoIterativeStore(key, value)
-
-            res := instance[j].LocalFindValue(key)
-            if res != ("OK: Found value: " + string(value)) {
-                t.Error(fmt.Sprintf("Node %d doesn't store correctly key,value from node %d", j, i))
-            }
-
-            retrieve := instance[i].DoIterativeFindValue(key)
-            if !bytes.Equal(value, []byte(retrieve)) {
-                t.Error(fmt.Sprintf("Error retrieving data from node %d", i))
-            }
-        }
-    }
+/*
+ - For each node, iterative store a key-value pair then call LocalFindValue on each other nodes and should get it
+ - then call iterativeFindNode on this node and should find it*/
+func Test_DoIterativeStoreAndIterativeFind(t *testing.T) {
+	N := len(instance)
+	for i := 0; i < N; i++ {
+		key := NewRandomID()
+		value := []byte(key.AsString())
+		fmt.Println("Testing: " + instance[i].NodeID.AsString())
+		instance[i].DoIterativeStore(key, value)
+		for j := 0; j < N; j++ {
+			if j == i {
+				continue
+			}
+			res := instance[j].LocalFindValue(key)
+			assertEqual(
+				"OK: Found value: "+string(value),
+				res,
+				fmt.Sprintf("Cannot find value in %d stored by %d", j, i),
+				t)
+		}
+		result := instance[i].DoIterativeFindValue(key)
+		assertContains(
+			result,
+			string(value),
+			fmt.Sprintf("Cannot iterative find value from node %d", i),
+			t)
+	}
 }
 
+func assertEqual(expect, actual, msg string, t *testing.T) {
+	if actual != expect {
+		t.Error(msg)
+		t.Error("Expect: " + expect)
+		t.Error("Actual: " + actual)
+	}
+}
 
+func assertContains(universe, subset, msg string, t *testing.T) {
+	if !strings.Contains(universe, subset) {
+		t.Error(msg)
+		t.Error("Universe: " + universe)
+		t.Error("Subset: " + subset)
+	}
+}
+
+func assertTrue(flag bool, msg string, t *testing.T) {
+	if !flag {
+		t.Error(msg)
+	}
+}

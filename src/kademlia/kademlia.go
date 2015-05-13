@@ -140,6 +140,7 @@ func PingHelper(self Contact, host net.IP, port uint16) (*PongMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer client.Close()
 	ping := PingMessage{self, NewRandomID()}
 	var pong PongMessage
 
@@ -157,7 +158,7 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
 	pong, err := PingHelper(k.SelfContact, host, port)
 	if err != nil {
-		//log.Fatal("ERR: ", err)
+		log.Fatal("ERR: ", err)
 		return "ERR: " + err.Error()
 	}
 	k.AddrBook.Update(pong.Sender)
@@ -174,16 +175,17 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
 		rpc.DefaultRPCPath+port_str,
 	)
 	if err != nil {
-		//log.Fatal("ERR: ", err)
+		log.Fatal("ERR: ", err)
 		return "ERR: " + err.Error()
 	}
+	defer client.Close()
 
 	req := StoreRequest{k.SelfContact, NewRandomID(), key, value}
 	var res StoreResult
 
 	err = client.Call("KademliaCore.Store", req, &res)
 	if err != nil {
-		//log.Fatal("ERR: ", err)
+		log.Fatal("ERR: ", err)
 		return "ERR: " + err.Error()
 	}
 
@@ -200,18 +202,18 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 		rpc.DefaultRPCPath+port_str,
 	)
 	if err != nil {
-		//log.Fatal("ERR: ", err)
+		log.Fatal("ERR: ", err)
 		return "ERR: " + err.Error()
 	}
+	defer client.Close()
 	req := FindNodeRequest{k.SelfContact, NewRandomID(), searchKey}
 	var res FindNodeResult
 	err = client.Call("KademliaCore.FindNode", req, &res)
 	if err != nil {
-		//log.Fatal("ERR: ", err)
+		log.Fatal("ERR: ", err)
 		return "ERR: " + err.Error()
 	}
 	for _, each := range res.Nodes {
-		fmt.Println("Found node: " + each.NodeID.AsString())
 		k.AddrBook.Update(each)
 	}
 	return fmt.Sprintf("OK: Found %d Nodes", len(res.Nodes))
@@ -227,15 +229,16 @@ func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
 		rpc.DefaultRPCPath+port_str,
 	)
 	if err != nil {
-		//log.Fatal("ERR: ", err)
+		log.Fatal("ERR: ", err)
 		return "ERR: " + err.Error()
 	}
+	defer client.Close()
 	req := FindValueRequest{k.SelfContact, NewRandomID(), searchKey}
 	var res FindValueResult
 
 	err = client.Call("KademliaCore.FindValue", req, &res)
 	if err != nil {
-		//log.Fatal("ERR: ", err)
+		log.Fatal("ERR: ", err)
 		return "ERR: " + err.Error()
 	}
 	if res.Value != nil {
@@ -336,6 +339,7 @@ func (k *Kademlia) DoIterativeStore(key ID, value []byte) string {
 	}
 	return buffer.String()
 }
+
 func (k *Kademlia) DoIterativeFindValue(key ID) string {
 	contacts, value := k.iterativeFindValue(key)
 	var buffer bytes.Buffer
