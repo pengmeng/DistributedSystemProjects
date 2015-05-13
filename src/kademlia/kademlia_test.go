@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -44,12 +43,12 @@ func TestPing(t *testing.T) {
 		t.Error("Instance 1's contact not found in Instance 2's contact list")
 		return
 	}
-	assertEqual(
+	assertStringEqual(
 		instance1.NodeID.AsString(),
 		contact1.NodeID.AsString(),
 		"Instance 1 ID incorrectly stored in Instance 2's contact list",
 		t)
-	assertEqual(
+	assertStringEqual(
 		instance2.NodeID.AsString(),
 		contact2.NodeID.AsString(),
 		"Instance 2 ID incorrectly stored in Instance 1's contact list",
@@ -62,16 +61,18 @@ func Test_StoreFind(t *testing.T) {
 	key := NewRandomID()
 	value := []byte("hello world!")
 	instance1.DoStore(&instance2.SelfContact, key, value)
-	assertEqual(
+	// Found value with given key
+	assertStringEqual(
 		"OK: Found value: "+string(value),
 		instance2.LocalFindValue(key),
 		"Instance 2 store wrong value!",
 		t)
-	assertEqual(
+	assertStringEqual(
 		"OK: Found value: "+string(value),
 		instance1.DoFindValue(&instance2.SelfContact, key),
 		"DoFindValue from Instance 1 retrieve wrong value!",
 		t)
+	// Not found value and got nodes instead
 	assertContains(
 		instance1.DoFindValue(&instance2.SelfContact, NewRandomID()),
 		"OK: Found nodes:",
@@ -83,7 +84,11 @@ func Test_StoreFind(t *testing.T) {
 var instance = SetUpNetwork()
 
 func SetUpNetwork() []*Kademlia {
-	ports := []uint16{7894, 7895, 7896, 7897, 7898, 7899, 7900, 7901, 7902, 7903}
+	ports := make([]uint16, 0, 50)
+	count := 21
+	for i := 7894; i < 7894+count; i++ {
+		ports = append(ports, uint16(i))
+	}
 	var instance []*Kademlia
 	for _, p := range ports {
 		instance = append(instance, NewKademlia("localhost:"+strconv.Itoa(int(p))))
@@ -98,8 +103,11 @@ func SetUpNetwork() []*Kademlia {
 	return instance
 }
 
-// For each node, try to find other node id and should get it in return list.
-func Test_IterativeFindNode(t *testing.T) {
+/*
+ * Try find existing node
+ * - for each node, try to find other node id and should get it in return list.
+ */
+func Test_DoIterativeFindNodeSucc(t *testing.T) {
 	N := len(instance)
 	for i := 0; i < N; i++ {
 		fmt.Println("Testing: " + instance[i].NodeID.AsString())
@@ -107,16 +115,10 @@ func Test_IterativeFindNode(t *testing.T) {
 			if j == i {
 				continue
 			}
-			contacts := instance[i].iterativeFindNode(instance[j].NodeID)
-			found := false
-			for _, c := range contacts {
-				if c.Equal(instance[j].SelfContact) {
-					found = true
-					break
-				}
-			}
-			assertTrue(
-				found,
+			list := instance[i].DoIterativeFindNode(instance[j].NodeID)
+			assertContains(
+				list,
+				instance[j].NodeID.AsString(),
 				fmt.Sprintf("Cannot find node %d from node %d", j, i),
 				t)
 		}
@@ -124,9 +126,25 @@ func Test_IterativeFindNode(t *testing.T) {
 }
 
 /*
- - For each node, iterative store a key-value pair then call LocalFindValue on each other nodes and should get it
- - then call iterativeFindNode on this node and should find it*/
-func Test_DoIterativeStoreAndIterativeFind(t *testing.T) {
+ * Try find not existing node and test number of return contacts
+ */
+func Test_DoIterativeFindNodeFail(t *testing.T) {
+	notexistid := NewRandomID()
+	list := instance[0].DoIterativeFindNode(notexistid)
+	assertNotContains(
+		list,
+		notexistid.AsString(),
+		"Found not existing id",
+		t)
+}
+
+/*
+ * Try iterative store and iterative find successfully
+ * - for each node, iterative store a key-value pair
+ * - call LocalFindValue on each other nodes and should get it
+ * - then call iterativeFindNode on this node and should find it
+ */
+func Test_DoIterativeStoreFindSucc(t *testing.T) {
 	N := len(instance)
 	for i := 0; i < N; i++ {
 		key := NewRandomID()
@@ -138,7 +156,7 @@ func Test_DoIterativeStoreAndIterativeFind(t *testing.T) {
 				continue
 			}
 			res := instance[j].LocalFindValue(key)
-			assertEqual(
+			assertStringEqual(
 				"OK: Found value: "+string(value),
 				res,
 				fmt.Sprintf("Cannot find value in %d stored by %d", j, i),
@@ -153,24 +171,15 @@ func Test_DoIterativeStoreAndIterativeFind(t *testing.T) {
 	}
 }
 
-func assertEqual(expect, actual, msg string, t *testing.T) {
-	if actual != expect {
-		t.Error(msg)
-		t.Error("Expect: " + expect)
-		t.Error("Actual: " + actual)
-	}
-}
-
-func assertContains(universe, subset, msg string, t *testing.T) {
-	if !strings.Contains(universe, subset) {
-		t.Error(msg)
-		t.Error("Universe: " + universe)
-		t.Error("Subset: " + subset)
-	}
-}
-
-func assertTrue(flag bool, msg string, t *testing.T) {
-	if !flag {
-		t.Error(msg)
-	}
+/*
+ * Try iterative find not existing key and test number of return contacts
+ */
+func Test_DoIterativeStoreFindFail(t *testing.T) {
+	notexistid := NewRandomID()
+	result := instance[0].DoIterativeFindValue(notexistid)
+	assertNotContains(
+		result,
+		notexistid.AsString(),
+		"Key-Value not found but return number of contacts not match",
+		t)
 }

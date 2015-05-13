@@ -158,7 +158,8 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) string {
 	// If all goes well, return "OK: <output>", otherwise print "ERR: <messsage>"
 	pong, err := PingHelper(k.SelfContact, host, port)
 	if err != nil {
-		log.Fatal("ERR: ", err)
+		//log.Fatal("ERR: ", err)
+		fmt.Println("ERR: " + err.Error())
 		return "ERR: " + err.Error()
 	}
 	k.AddrBook.Update(pong.Sender)
@@ -175,7 +176,8 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
 		rpc.DefaultRPCPath+port_str,
 	)
 	if err != nil {
-		log.Fatal("ERR: ", err)
+		//log.Fatal("ERR: ", err)
+		fmt.Println("ERR: " + err.Error())
 		return "ERR: " + err.Error()
 	}
 	defer client.Close()
@@ -185,7 +187,8 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) string {
 
 	err = client.Call("KademliaCore.Store", req, &res)
 	if err != nil {
-		log.Fatal("ERR: ", err)
+		//log.Fatal("ERR: ", err)
+		fmt.Println("ERR: " + err.Error())
 		return "ERR: " + err.Error()
 	}
 
@@ -202,7 +205,8 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 		rpc.DefaultRPCPath+port_str,
 	)
 	if err != nil {
-		log.Fatal("ERR: ", err)
+		//log.Fatal("ERR: ", err)
+		fmt.Println("ERR: " + err.Error())
 		return "ERR: " + err.Error()
 	}
 	defer client.Close()
@@ -210,7 +214,8 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) string {
 	var res FindNodeResult
 	err = client.Call("KademliaCore.FindNode", req, &res)
 	if err != nil {
-		log.Fatal("ERR: ", err)
+		//log.Fatal("ERR: ", err)
+		fmt.Println("ERR: " + err.Error())
 		return "ERR: " + err.Error()
 	}
 	for _, each := range res.Nodes {
@@ -229,7 +234,8 @@ func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
 		rpc.DefaultRPCPath+port_str,
 	)
 	if err != nil {
-		log.Fatal("ERR: ", err)
+		//log.Fatal("ERR: ", err)
+		fmt.Println("ERR: " + err.Error())
 		return "ERR: " + err.Error()
 	}
 	defer client.Close()
@@ -238,7 +244,8 @@ func (k *Kademlia) DoFindValue(contact *Contact, searchKey ID) string {
 
 	err = client.Call("KademliaCore.FindValue", req, &res)
 	if err != nil {
-		log.Fatal("ERR: ", err)
+		//log.Fatal("ERR: ", err)
+		fmt.Println("ERR: " + err.Error())
 		return "ERR: " + err.Error()
 	}
 	if res.Value != nil {
@@ -299,8 +306,10 @@ func (k *Kademlia) iterativeFindNode(id ID) []Contact {
 					statusMap[todo[i].NodeID] = 2
 					k.AddrBook.Remove(todo[i].NodeID)
 				}
-			case <-time.After(time.Millisecond * 300):
+			case <-time.After(time.Millisecond * 1000):
 				statusMap[todo[i].NodeID] = 2
+				fmt.Println(todo[i].NodeID.AsString() + " timed out")
+				//k.AddrBook.Remove(todo[i].NodeID)
 			}
 		}
 		shortlist = k.AddrBook.Find(id)
