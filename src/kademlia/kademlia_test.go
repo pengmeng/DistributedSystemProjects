@@ -5,30 +5,9 @@ import (
 	"net"
 	"strconv"
 	"testing"
+	"os"
+	"os/exec"
 )
-
-// ======================= Set UP===========================
-var instance = SetUpNetwork()
-var TOTAL = 25
-
-func SetUpNetwork() []*Kademlia {
-	ports := make([]uint16, 0, 50)
-	for i := 7890; i < 7890+TOTAL; i++ {
-		ports = append(ports, uint16(i))
-	}
-	var instance []*Kademlia
-	for _, p := range ports {
-		instance = append(instance, NewKademlia("localhost:"+strconv.Itoa(int(p))))
-	}
-	fmt.Printf("Testing with %d nodes:\n", len(ports))
-	fmt.Println("Node 0: " + instance[0].NodeID.AsString())
-	for i := 1; i < len(ports); i++ {
-		instance[i].DoPing(net.IPv4(127, 0, 0, 1), ports[i-1])
-		fmt.Printf("Node %d: "+instance[i].NodeID.AsString()+"\n", i)
-	}
-	fmt.Println("Done creating network")
-	return instance
-}
 
 // ======================= Primitive operations ===========================
 func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
@@ -51,11 +30,8 @@ func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
 	return
 }
 
-func TestPing(t *testing.T) {
-	instance1 := instance[0]
-	instance2 := instance[1]
-	host2, port2, _ := StringToIpPort("localhost:7891")
-	instance1.DoPing(host2, port2)
+func testPing(instance1 *Kademlia, instance2 *Kademlia, t *testing.T) {
+	instance1.DoPing(instance2.SelfContact.Host, instance2.SelfContact.Port)
 	contact2, err := instance1.FindContact(instance2.NodeID)
 	if err != nil {
 		t.Error("Instance 2's contact not found in Instance 1's contact list")
@@ -78,9 +54,7 @@ func TestPing(t *testing.T) {
 		t)
 }
 
-func Test_StoreFind(t *testing.T) {
-	instance1 := instance[2]
-	instance2 := instance[3]
+func test_StoreFind(instance1 *Kademlia, instance2 *Kademlia, t *testing.T) {
 	key := NewRandomID()
 	value := []byte("hello world!")
 	instance1.DoStore(&instance2.SelfContact, key, value)
@@ -104,17 +78,39 @@ func Test_StoreFind(t *testing.T) {
 }
 
 // =============================== Iterative ==============================
+func SetUpNetwork() ([]*Kademlia, []uint16) {
+	ports := make([]uint16, 0, 50)
+	count := 5
+	for i := 7894; i < 7894+count; i++ {
+		ports = append(ports, uint16(i))
+	}
+	var instance []*Kademlia
+	for _, p := range ports {
+		instance = append(instance, NewKademlia("localhost:"+strconv.Itoa(int(p))))
+	}
+	fmt.Printf("Testing with %d nodes:\n", len(ports))
+	fmt.Printf("Node 0, port %d: " + instance[0].NodeID.AsString() + "\n", ports[0])
+	for i := 1; i < len(ports); i++ {
+		instance[i].DoPing(net.IPv4(127, 0, 0, 1), ports[i-1])
+		fmt.Printf("Node %d, port %d: "+instance[i].NodeID.AsString()+"\n", i, ports[i])
+	}
+	fmt.Println("Done creating network")
+	return instance, ports
+}
 
 /*
  * Try find existing node
  * - for each node, try to find other node id and should get it in return list.
  */
-func Test_DoIterativeFindNodeSucc(t *testing.T) {
+func test_DoIterativeFindNodeSucc(instance []*Kademlia, drop map[int]bool, t *testing.T) {
 	N := len(instance)
 	for i := 0; i < N; i++ {
+		if drop[i] {
+			continue;
+		}
 		fmt.Println("Testing: " + instance[i].NodeID.AsString())
 		for j := 0; j < N; j++ {
-			if j == i {
+			if j == i || drop[j] {
 				continue
 			}
 			list := instance[i].DoIterativeFindNode(instance[j].NodeID)
@@ -130,7 +126,7 @@ func Test_DoIterativeFindNodeSucc(t *testing.T) {
 /*
  * Try find not existing node and test number of return contacts
  */
-func Test_DoIterativeFindNodeFail(t *testing.T) {
+func test_DoIterativeFindNodeFail(instance []*Kademlia, t *testing.T) {
 	notexistid := NewRandomID()
 	list := instance[0].DoIterativeFindNode(notexistid)
 	assertNotContains(
@@ -146,16 +142,21 @@ func Test_DoIterativeFindNodeFail(t *testing.T) {
  * - call LocalFindValue on each other nodes and should get it
  * - then call iterativeFindNode on this node and should find it
  */
-func Test_DoIterativeStoreFindSucc(t *testing.T) {
+func test_DoIterativeStoreFindSucc(instance []*Kademlia, drop map[int]bool, t *testing.T) {
 	N := len(instance)
 	for i := 0; i < N; i++ {
+		if drop[i] {
+			continue;
+		}
+
 		key := NewRandomID()
 		value := []byte(key.AsString())
 		fmt.Println("Testing: " + instance[i].NodeID.AsString())
 		instance[i].DoIterativeStore(key, value)
+
 		if N <= k {
 			for j := 0; j < N; j++ {
-				if j == i {
+				if j == i || drop[j] {
 					continue
 				}
 				res := instance[j].LocalFindValue(key)
@@ -165,20 +166,20 @@ func Test_DoIterativeStoreFindSucc(t *testing.T) {
 					fmt.Sprintf("Cannot find value in %d stored by %d", j, i),
 					t)
 			}
+			result := instance[i].DoIterativeFindValue(key)
+			assertContains(
+				result,
+				string(value),
+				fmt.Sprintf("Cannot iterative find value from node %d", i),
+				t)
 		}
-		result := instance[i].DoIterativeFindValue(key)
-		assertContains(
-			result,
-			string(value),
-			fmt.Sprintf("Cannot iterative find value from node %d", i),
-			t)
 	}
 }
 
 /*
  * Try iterative find not existing key and test number of return contacts
  */
-func Test_DoIterativeStoreFindFail(t *testing.T) {
+func test_DoIterativeStoreFindFail(instance []*Kademlia, t *testing.T) {
 	notexistid := NewRandomID()
 	result := instance[0].DoIterativeFindValue(notexistid)
 	assertNotContains(
@@ -186,4 +187,47 @@ func Test_DoIterativeStoreFindFail(t *testing.T) {
 		notexistid.AsString(),
 		"Key-Value not found but return number of contacts not match",
 		t)
+}
+
+func TestMain(t *testing.T) {
+	instance, ports := SetUpNetwork()
+
+	testPing(instance[0], instance[1], t)
+	test_StoreFind(instance[0], instance[1], t)
+	
+	drop := make(map[int]bool)
+	for i := 0; i < len(ports); i++ {
+		drop[i] = false
+	}
+
+	// All nodes are active
+	test_DoIterativeFindNodeSucc(instance, drop, t)
+	test_DoIterativeFindNodeFail(instance, t)
+	test_DoIterativeStoreFindSucc(instance, drop, t)
+	test_DoIterativeStoreFindFail(instance, t)
+
+	// Kill some node using IP tables
+	dropping := []int {0}
+
+	for _, d := range dropping {
+		drop[d] = true
+		fmt.Println(fmt.Sprintf("Stopping node %d at port %d", d, ports[d]))
+		cmd := []string{	"iptables",
+							"-I", "INPUT", "-p", "tcp", 
+							"--dport", fmt.Sprintf("%d", ports[d]), "-j", "DROP"}
+		if err := exec.Command("sudo", cmd...).Run(); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
+	test_DoIterativeFindNodeSucc(instance, drop, t)
+	test_DoIterativeFindNodeFail(instance, t)
+	test_DoIterativeStoreFindSucc(instance, drop, t)
+
+	fmt.Println("Reset ip tables")
+	if err := exec.Command("sudo", "iptables", "-F").Run(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
