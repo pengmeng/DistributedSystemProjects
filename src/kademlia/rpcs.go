@@ -131,3 +131,20 @@ func (kc *KademliaCore) FindValue(req FindValueRequest, res *FindValueResult) er
 
 	return nil
 }
+
+//Project 3 Vanish
+type GetVDORequest struct {
+	Sender Contact
+	MsgID  ID
+	VdoID  ID
+}
+
+type GetVDOResult struct {
+	MsgID ID
+	VDO   VanashingDataObject
+}
+
+func (kc *KademliaCore) GetVDO(req GetVDORequest, res *GetVDOResult) error {
+	// fill in
+	return nil
+}
