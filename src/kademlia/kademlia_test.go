@@ -164,29 +164,33 @@ func Test_DoIterativeFindNodeFail(t *testing.T) {
  */
 func Test_DoIterativeStoreFindSucc(t *testing.T) {
 	N := len(instance)
-	for i := 0; i < N; i++ {
+	for i := 0; i < N/k+1; i++ {
+		from := (rand.Int() % (N - 1)) + 1
+		to := (rand.Int() % (N - 1)) + 1
+		for to == from {
+			to = (rand.Int() % (N - 1)) + 1
+		}
 		key := NewRandomID()
 		value := []byte(key.AsString())
-		fmt.Println("Testing: " + instance[i].NodeID.AsString())
-		instance[i].DoIterativeStore(key, value)
-		if N <= k {
-			for j := 0; j < N; j++ {
-				if j == i {
-					continue
-				}
-				res := instance[j].LocalFindValue(key)
-				assertStringEqual(
-					"OK: Found value: "+string(value),
-					res,
-					fmt.Sprintf("Cannot find value in %d stored by %d", j, i),
-					t)
-			}
-		}
-		result := instance[i].DoIterativeFindValue(key)
+		fmt.Printf(
+			"IterativeStore from: %s\nFind from: %s\n",
+			instance[from].NodeID.AsString(),
+			instance[to].NodeID.AsString())
+		instance[from].DoIterativeStore(key, value)
 		assertContains(
-			result,
+			instance[to].DoIterativeFindValue(key),
 			string(value),
-			fmt.Sprintf("Cannot iterative find value from node %d", i),
+			fmt.Sprintf(
+				"Cannot find value in %s stored by %s\n",
+				instance[to].NodeID.AsString(),
+				instance[from].NodeID.AsString()),
+			t)
+		assertContains(
+			instance[from].DoIterativeFindValue(key),
+			string(value),
+			fmt.Sprintf(
+				"Cannot find value in %s stored by itself\n",
+				instance[from].NodeID.AsString()),
 			t)
 	}
 }
@@ -201,5 +205,41 @@ func Test_DoIterativeStoreFindFail(t *testing.T) {
 		result,
 		notexistid.AsString(),
 		"Key-Value not found but return number of contacts not match",
+		t)
+}
+
+// Vanish test cases
+
+func Test_DoVanishSucc(t *testing.T) {
+	numberKeys := byte(10)
+	threshold := byte(5)
+	N := len(instance)
+	for i := 0; i < N/k+1; i++ {
+		from := (rand.Int() % (N - 1)) + 1
+		to := (rand.Int() % (N - 1)) + 1
+		for to == from {
+			to = (rand.Int() % (N - 1)) + 1
+		}
+		vdoId := NewRandomID()
+		vdoData := []byte("vdodata" + string(i))
+		fmt.Printf(
+			"Vanish at: %s\nUnvanish at: %s\n",
+			instance[from].NodeID.AsString(),
+			instance[to].NodeID.AsString())
+		instance[from].DoVanish(vdoId, vdoData, numberKeys, threshold)
+		assertContains(
+			instance[to].DoUnvanish(&instance[from].SelfContact, vdoId),
+			string(vdoData),
+			fmt.Sprintf("Cannot unvanish at %d from %d", to, from),
+			t)
+	}
+}
+
+func Test_DoVanishFail(t *testing.T) {
+	notexistid := NewRandomID()
+	assertContains(
+		instance[0].DoUnvanish(&instance[0].SelfContact, notexistid),
+		"ERR:",
+		"Found not existing vanish data",
 		t)
 }
