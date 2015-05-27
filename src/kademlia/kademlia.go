@@ -26,6 +26,11 @@ type Pair struct {
 	value []byte
 }
 
+type VdoPair struct {
+	key ID
+	vdo *VanashingDataObject
+}
+
 // Kademlia type. You can put whatever state you need in this.
 type Kademlia struct {
 	NodeID      ID
@@ -36,6 +41,11 @@ type Kademlia struct {
 	addDataChan  chan Pair
 	findDataChan chan ID
 	resChan      chan []byte
+
+	VdoData     map[ID]*VanashingDataObject
+	addVdoChan  chan VdoPair
+	findVdoChan chan ID
+	resVdoChan  chan *VanashingDataObject
 }
 
 func NewKademlia(laddr string) *Kademlia {
@@ -50,6 +60,11 @@ func NewKademlia(laddr string) *Kademlia {
 
 	go k.MessageWorker()
 
+	k.VdoData = make(map[ID]*VanashingDataObject)
+	k.addVdoChan = make(chan VdoPair)
+	k.findVdoChan = make(chan ID)
+	k.resVdoChan = make(chan *VanashingDataObject)
+	go k.VdoWorker()
 	// Set up RPC server
 	// NOTE: KademliaCore is just a wrapper around Kademlia. This type includes
 	// the RPC functions.
@@ -412,4 +427,71 @@ func (k *Kademlia) callFindValue(id ID, valueCh chan *Contact, resCh chan string
 			resCh <- k.DoFindValue(con, id)
 		}
 	}
+}
+
+// ========================== Vanish =========================
+func (k Kademlia) DoVanish(id ID, data []byte, numberKeys, threshold byte) string {
+	vdo := VanishData(k, data, numberKeys, threshold)
+	k.addVdoData(VdoPair{id, &vdo})
+	return "OK:"
+}
+
+func (k Kademlia) DoUnvanish(contact *Contact, vdoId ID) string {
+	port_str := strconv.Itoa(int((*contact).Port))
+	client, err := rpc.DialHTTPPath(
+		"tcp",
+		fmt.Sprintf("%s:%d", (*contact).Host.String(), (*contact).Port),
+		rpc.DefaultRPCPath+port_str,
+	)
+	if err != nil {
+		fmt.Println("ERR: " + err.Error())
+		return "ERR: " + err.Error()
+	}
+	defer client.Close()
+	req := GetVDORequest{k.SelfContact, NewRandomID(), vdoId}
+	var res GetVDOResult
+
+	err = client.Call("KademliaCore.GetVDO", req, &res)
+	if err != nil {
+		fmt.Println("ERR: " + err.Error())
+		return "ERR: " + err.Error()
+	}
+	if res.VDO.Ciphertext != nil {
+		data := UnvanishData(k, res.VDO)
+		if data == nil {
+			return "ERR: cannot get more than threshold shares"
+		} else {
+			return "OK: Found VDO with text: " + string(data)
+		}
+	} else {
+		return "ERR: Not Found from remote node"
+	}
+}
+
+func (k *Kademlia) VdoWorker() {
+	for {
+		select {
+		case pair := <-k.addVdoChan:
+			k.VdoData[pair.key] = pair.vdo
+		case key := <-k.findVdoChan:
+			if vdo, ok := k.VdoData[key]; ok {
+				k.resVdoChan <- vdo
+			} else {
+				k.resVdoChan <- nil
+			}
+		}
+	}
+}
+
+func (k *Kademlia) addVdoData(p VdoPair) {
+	k.addVdoChan <- p
+}
+
+func (k Kademlia) getVdoData(key ID) (*VanashingDataObject, error) {
+	k.findVdoChan <- key
+	result := <-k.resVdoChan
+	if result != nil {
+		return result, nil
+	}
+	return nil, &NotFoundError{key, "Key does not exist"}
 }

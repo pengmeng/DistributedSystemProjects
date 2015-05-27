@@ -13,7 +13,7 @@ import (
 var instance = SetUpNetwork()
 
 // This is total # of Kademlia created for test, change this # if you want.
-var TOTAL = 25
+var TOTAL = 50
 
 func SetUpNetwork() []*Kademlia {
 	rand.Seed(time.Now().UnixNano())

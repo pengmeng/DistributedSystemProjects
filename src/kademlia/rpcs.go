@@ -145,6 +145,14 @@ type GetVDOResult struct {
 }
 
 func (kc *KademliaCore) GetVDO(req GetVDORequest, res *GetVDOResult) error {
-	// fill in
+	go kc.kademlia.AddrBook.Update(req.Sender)
+	vdo, err := kc.kademlia.getVdoData(req.VdoID)
+	if err == nil {
+		res.MsgID = CopyID(req.MsgID)
+		res.VDO = *vdo
+	} else {
+		res.MsgID = CopyID(req.MsgID)
+		res.VDO = VanashingDataObject{Ciphertext: nil}
+	}
 	return nil
 }

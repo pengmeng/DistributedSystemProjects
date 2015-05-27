@@ -5,9 +5,9 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"io"
-    "time"
 	mathrand "math/rand"
-	//"sss"
+	"sss"
+	"time"
 )
 
 type VanashingDataObject struct {
@@ -25,9 +25,9 @@ func GenerateRandomCryptoKey() (ret []byte) {
 }
 
 func GenerateRandomAccessKey() (accessKey int64) {
-    r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
-    accessKey = r.Int63()
-    return
+	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
+	accessKey = r.Int63()
+	return
 }
 
 func CalculateSharedKeyLocations(accessKey int64, count int64) (ids []ID) {
@@ -74,9 +74,64 @@ func decrypt(key []byte, ciphertext []byte) (text []byte) {
 
 func VanishData(kadem Kademlia, data []byte, numberKeys byte,
 	threshold byte) (vdo VanashingDataObject) {
+	key := GenerateRandomCryptoKey()
+	ciphertext := encrypt(key, data)
+	shares, err := sss.Split(numberKeys, threshold, key)
+	if err != nil {
+		panic(err)
+	}
+	fullShares := sharesMap2Array(shares)
+	accessKey := GenerateRandomAccessKey()
+	locations := CalculateSharedKeyLocations(accessKey, int64(numberKeys))
+	for i := byte(0); i < numberKeys; i++ {
+		kadem.DoIterativeStore(locations[i], fullShares[i])
+	}
+	vdo.AccessKey = accessKey
+	vdo.Ciphertext = ciphertext
+	vdo.NumberKeys = numberKeys
+	vdo.Threshold = threshold
 	return
 }
 
 func UnvanishData(kadem Kademlia, vdo VanashingDataObject) (data []byte) {
+	locations := CalculateSharedKeyLocations(vdo.AccessKey, int64(vdo.NumberKeys))
+	threshold := int(vdo.Threshold)
+	fullShares := make([][]byte, 0)
+	for _, each := range locations {
+		_, value := kadem.iterativeFindValue(each)
+		if value != "" {
+			fullShares = append(fullShares, []byte(value))
+		}
+		if len(fullShares) >= threshold {
+			break
+		}
+	}
+	if len(fullShares) < threshold {
+		//panic("# of found shares less then threshold")
+		data = nil
+		return
+	}
+	shares := sharesArray2Map(fullShares)
+	key := sss.Combine(shares)
+	data = decrypt(key, vdo.Ciphertext)
+	return
+}
+
+func sharesMap2Array(shares map[byte][]byte) (result [][]byte) {
+	result = make([][]byte, 0)
+	for k, v := range shares {
+		all := append([]byte{k}, v...)
+		result = append(result, all)
+	}
+	return
+}
+
+func sharesArray2Map(shares [][]byte) (result map[byte][]byte) {
+	result = make(map[byte][]byte, 0)
+	for _, all := range shares {
+		k := all[0]
+		v := all[1:]
+		result[k] = v
+	}
 	return
 }

@@ -289,18 +289,35 @@ func executeLine(k *kademlia.Kademlia, line string) (response string) {
 			response = "usage: vanish [VDO ID] [data] [numberKeys] [threshold]"
 			return
 		}
-		//kademlia.VanishData(*k, []byte(toks[2]), byte(toks[3]), byte(toks[4]))
-	case toks[0] == "unvanish":
-		if len(toks) != 3 {
-			response = "usage: unvanish [Node ID] [VDO ID]"
-		}
-		vdoID, err := kademlia.IDFromString(toks[2])
+		vdoId, err := kademlia.IDFromString(toks[1])
 		if err != nil {
 			response = "ERR: Provided an invalid key (" + toks[1] + ")"
 			return
 		}
-		response = vdoID.AsString()
-		//kademlia.UnvanishData(*k, VanashingDataObject{})
+		n, _ := strconv.Atoi(toks[3])
+		t, _ := strconv.Atoi(toks[4])
+		response = k.DoVanish(vdoId, []byte(toks[2]), byte(n), byte(t))
+	case toks[0] == "unvanish":
+		if len(toks) != 3 {
+			response = "usage: unvanish [Node ID] [VDO ID]"
+			return
+		}
+		nodeId, err := kademlia.IDFromString(toks[1])
+		if err != nil {
+			response = "ERR: Provided an invalid key (" + toks[1] + ")"
+			return
+		}
+		contact, err := k.FindContact(nodeId)
+		if err != nil {
+			response = "ERR: Unable to find contact with node ID (" + toks[1] + ")"
+			return
+		}
+		vdoId, err := kademlia.IDFromString(toks[2])
+		if err != nil {
+			response = "ERR: Provided an invalid key (" + toks[2] + ")"
+			return
+		}
+		response = k.DoUnvanish(contact, vdoId)
 	default:
 		response = "ERR: Unknown command"
 	}
