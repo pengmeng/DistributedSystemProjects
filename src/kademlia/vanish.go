@@ -15,6 +15,7 @@ type VanashingDataObject struct {
 	Ciphertext []byte
 	NumberKeys byte
 	Threshold  byte
+	Timeout    int
 }
 
 func GenerateRandomCryptoKey() (ret []byte) {
@@ -75,17 +76,9 @@ func decrypt(key []byte, ciphertext []byte) (text []byte) {
 func VanishData(kadem Kademlia, data []byte, numberKeys byte,
 	threshold byte) (vdo VanashingDataObject) {
 	key := GenerateRandomCryptoKey()
-	ciphertext := encrypt(key, data)
-	shares, err := sss.Split(numberKeys, threshold, key)
-	if err != nil {
-		panic(err)
-	}
-	fullShares := sharesMap2Array(shares)
 	accessKey := GenerateRandomAccessKey()
-	locations := CalculateSharedKeyLocations(accessKey, int64(numberKeys))
-	for i := byte(0); i < numberKeys; i++ {
-		kadem.DoIterativeStore(locations[i], fullShares[i])
-	}
+	ciphertext := encrypt(key, data)
+	distributeShares(kadem, numberKeys, threshold, key, accessKey)
 	vdo.AccessKey = accessKey
 	vdo.Ciphertext = ciphertext
 	vdo.NumberKeys = numberKeys
@@ -93,7 +86,42 @@ func VanishData(kadem Kademlia, data []byte, numberKeys byte,
 	return
 }
 
+func distributeShares(kadem Kademlia, numberKeys, threshold byte, key []byte, accessKey int64) {
+	shares, err := sss.Split(numberKeys, threshold, key)
+	if err != nil {
+		panic(err)
+	}
+	fullShares := sharesMap2Array(shares)
+	locations := CalculateSharedKeyLocations(accessKey, int64(numberKeys))
+	for i := byte(0); i < numberKeys; i++ {
+		kadem.DoIterativeStore(locations[i], fullShares[i])
+	}
+}
+
+func Refresh(kadem Kademlia, vdo VanashingDataObject) {
+	loops := vdo.Timeout / 8
+	for loops > 0 {
+		select {
+		case <-time.After(time.Hour * 8):
+			key := retrieveKey(kadem, vdo)
+			if key != nil {
+				distributeShares(kadem, vdo.NumberKeys, vdo.Threshold, key, vdo.AccessKey)
+			}
+		}
+	}
+}
+
 func UnvanishData(kadem Kademlia, vdo VanashingDataObject) (data []byte) {
+	key := retrieveKey(kadem, vdo)
+	if key == nil {
+		data = nil
+	} else {
+		data = decrypt(key, vdo.Ciphertext)
+	}
+	return
+}
+
+func retrieveKey(kadem Kademlia, vdo VanashingDataObject) (key []byte) {
 	locations := CalculateSharedKeyLocations(vdo.AccessKey, int64(vdo.NumberKeys))
 	threshold := int(vdo.Threshold)
 	fullShares := make([][]byte, 0)
@@ -107,13 +135,11 @@ func UnvanishData(kadem Kademlia, vdo VanashingDataObject) (data []byte) {
 		}
 	}
 	if len(fullShares) < threshold {
-		//panic("# of found shares less then threshold")
-		data = nil
+		key = nil
 		return
 	}
 	shares := sharesArray2Map(fullShares)
-	key := sss.Combine(shares)
-	data = decrypt(key, vdo.Ciphertext)
+	key = sss.Combine(shares)
 	return
 }
 
