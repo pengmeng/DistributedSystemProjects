@@ -430,8 +430,8 @@ func (k *Kademlia) callFindValue(id ID, valueCh chan *Contact, resCh chan string
 }
 
 // ========================== Vanish =========================
-func (k Kademlia) DoVanish(id ID, data []byte, numberKeys, threshold byte) string {
-	vdo := VanishData(k, data, numberKeys, threshold)
+func (k Kademlia) DoVanish(id ID, data []byte, numberKeys, threshold, timeout byte) string {
+	vdo := VanishData(k, data, numberKeys, threshold, timeout)
 	k.addVdoData(VdoPair{id, &vdo})
 	return "OK:"
 }

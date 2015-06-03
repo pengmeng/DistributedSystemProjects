@@ -15,8 +15,10 @@ type VanashingDataObject struct {
 	Ciphertext []byte
 	NumberKeys byte
 	Threshold  byte
-	Timeout    int
+	Timeout    byte
 }
+
+const EPOCH_RANGE = int64(3600 * 8)
 
 func GenerateRandomCryptoKey() (ret []byte) {
 	for i := 0; i < 32; i++ {
@@ -31,8 +33,8 @@ func GenerateRandomAccessKey() (accessKey int64) {
 	return
 }
 
-func CalculateSharedKeyLocations(accessKey int64, count int64) (ids []ID) {
-	r := mathrand.New(mathrand.NewSource(accessKey))
+func CalculateSharedKeyLocations(accessKey, count, epoch int64) (ids []ID) {
+	r := mathrand.New(mathrand.NewSource(accessKey + epoch))
 	ids = make([]ID, count)
 	for i := int64(0); i < count; i++ {
 		for j := 0; j < IDBytes; j++ {
@@ -40,6 +42,10 @@ func CalculateSharedKeyLocations(accessKey int64, count int64) (ids []ID) {
 		}
 	}
 	return
+}
+
+func currentEpoch() int64 {
+	return time.Now().Unix() / EPOCH_RANGE
 }
 
 func encrypt(key []byte, text []byte) (ciphertext []byte) {
@@ -73,8 +79,7 @@ func decrypt(key []byte, ciphertext []byte) (text []byte) {
 	return ciphertext
 }
 
-func VanishData(kadem Kademlia, data []byte, numberKeys byte,
-	threshold byte) (vdo VanashingDataObject) {
+func VanishData(kadem Kademlia, data []byte, numberKeys, threshold, timeout byte) (vdo VanashingDataObject) {
 	key := GenerateRandomCryptoKey()
 	accessKey := GenerateRandomAccessKey()
 	ciphertext := encrypt(key, data)
@@ -83,6 +88,7 @@ func VanishData(kadem Kademlia, data []byte, numberKeys byte,
 	vdo.Ciphertext = ciphertext
 	vdo.NumberKeys = numberKeys
 	vdo.Threshold = threshold
+	vdo.Timeout = timeout
 	return
 }
 
@@ -92,14 +98,18 @@ func distributeShares(kadem Kademlia, numberKeys, threshold byte, key []byte, ac
 		panic(err)
 	}
 	fullShares := sharesMap2Array(shares)
-	locations := CalculateSharedKeyLocations(accessKey, int64(numberKeys))
+	locations := CalculateSharedKeyLocations(
+		accessKey,
+		int64(numberKeys),
+		currentEpoch(),
+	)
 	for i := byte(0); i < numberKeys; i++ {
 		kadem.DoIterativeStore(locations[i], fullShares[i])
 	}
 }
 
 func Refresh(kadem Kademlia, vdo VanashingDataObject) {
-	loops := vdo.Timeout / 8
+	loops := int(vdo.Timeout) / 8
 	for loops > 0 {
 		select {
 		case <-time.After(time.Hour * 8):
@@ -122,13 +132,23 @@ func UnvanishData(kadem Kademlia, vdo VanashingDataObject) (data []byte) {
 }
 
 func retrieveKey(kadem Kademlia, vdo VanashingDataObject) (key []byte) {
-	locations := CalculateSharedKeyLocations(vdo.AccessKey, int64(vdo.NumberKeys))
 	threshold := int(vdo.Threshold)
-	fullShares := make([][]byte, 0)
-	for _, each := range locations {
-		_, value := kadem.iterativeFindValue(each)
-		if value != "" {
-			fullShares = append(fullShares, []byte(value))
+	var fullShares [][]byte
+	for i := range []int{0, -1, 1} {
+		locations := CalculateSharedKeyLocations(
+			vdo.AccessKey,
+			int64(vdo.NumberKeys),
+			currentEpoch()+int64(i),
+		)
+		fullShares = make([][]byte, 0)
+		for _, each := range locations {
+			_, value := kadem.iterativeFindValue(each)
+			if value != "" {
+				fullShares = append(fullShares, []byte(value))
+			}
+			if len(fullShares) >= threshold {
+				break
+			}
 		}
 		if len(fullShares) >= threshold {
 			break

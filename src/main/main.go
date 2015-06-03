@@ -285,7 +285,7 @@ func executeLine(k *kademlia.Kademlia, line string) (response string) {
 		}
 		response = k.DoIterativeFindValue(key)
 	case toks[0] == "vanish":
-		if len(toks) != 5 {
+		if len(toks) != 6 {
 			response = "usage: vanish [VDO ID] [data] [numberKeys] [threshold]"
 			return
 		}
@@ -296,7 +296,8 @@ func executeLine(k *kademlia.Kademlia, line string) (response string) {
 		}
 		n, _ := strconv.Atoi(toks[3])
 		t, _ := strconv.Atoi(toks[4])
-		response = k.DoVanish(vdoId, []byte(toks[2]), byte(n), byte(t))
+		timeout, _ := strconv.Atoi(toks[5])
+		response = k.DoVanish(vdoId, []byte(toks[2]), byte(n), byte(t), byte(timeout))
 	case toks[0] == "unvanish":
 		if len(toks) != 3 {
 			response = "usage: unvanish [Node ID] [VDO ID]"

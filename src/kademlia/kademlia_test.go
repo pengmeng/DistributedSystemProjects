@@ -213,6 +213,7 @@ func Test_DoIterativeStoreFindFail(t *testing.T) {
 func Test_DoVanishSucc(t *testing.T) {
 	numberKeys := byte(10)
 	threshold := byte(5)
+	timeout := byte(8)
 	N := len(instance)
 	for i := 0; i < N/k+1; i++ {
 		from := (rand.Int() % (N - 1)) + 1
@@ -226,7 +227,7 @@ func Test_DoVanishSucc(t *testing.T) {
 			"Vanish at: %s\nUnvanish at: %s\n",
 			instance[from].NodeID.AsString(),
 			instance[to].NodeID.AsString())
-		instance[from].DoVanish(vdoId, vdoData, numberKeys, threshold)
+		instance[from].DoVanish(vdoId, vdoData, numberKeys, threshold, timeout)
 		assertContains(
 			instance[to].DoUnvanish(&instance[from].SelfContact, vdoId),
 			string(vdoData),
