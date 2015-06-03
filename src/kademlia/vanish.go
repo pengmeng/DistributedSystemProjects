@@ -89,6 +89,7 @@ func VanishData(kadem Kademlia, data []byte, numberKeys, threshold, timeout byte
 	vdo.NumberKeys = numberKeys
 	vdo.Threshold = threshold
 	vdo.Timeout = timeout
+	go Refresh(kadem, vdo)
 	return
 }
 
@@ -109,8 +110,7 @@ func distributeShares(kadem Kademlia, numberKeys, threshold byte, key []byte, ac
 }
 
 func Refresh(kadem Kademlia, vdo VanashingDataObject) {
-	loops := int(vdo.Timeout) / 8
-	for loops > 0 {
+	for loops := int(vdo.Timeout) / 8; loops > 0; loops-- {
 		select {
 		case <-time.After(time.Hour * 8):
 			key := retrieveKey(kadem, vdo)
